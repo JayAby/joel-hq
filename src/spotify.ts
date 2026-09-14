@@ -41,6 +41,8 @@ export async function startSpotifyLogin() {
   localStorage.setItem(LS_VERIFIER, verifier)
   const challenge = base64UrlEncode(await sha256(verifier))
 
+  console.log('Spotify login starting with redirect_uri:', REDIRECT_URI)
+
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     response_type: 'code',
@@ -64,10 +66,22 @@ export function disconnectSpotify() {
 export async function handleSpotifyRedirect() {
   const url = new URL(window.location.href)
   const code = url.searchParams.get('code')
+  const errorParam = url.searchParams.get('error')
+
+  if (errorParam) {
+    console.error('Spotify redirected back with an error:', errorParam)
+    url.searchParams.delete('error')
+    window.history.replaceState({}, '', url.toString())
+    return
+  }
+
   if (!code) return
 
   const verifier = localStorage.getItem(LS_VERIFIER)
-  if (!verifier) return
+  if (!verifier) {
+    console.error('No stored code_verifier found — cannot complete Spotify login. Try connecting again.')
+    return
+  }
 
   const body = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -82,10 +96,16 @@ export async function handleSpotifyRedirect() {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   })
+
   if (res.ok) {
     const data = await res.json()
     storeTokens(data)
+    console.log('Spotify connected successfully.')
+  } else {
+    const errText = await res.text()
+    console.error('Spotify token exchange failed:', res.status, errText)
   }
+
   url.searchParams.delete('code')
   url.searchParams.delete('state')
   window.history.replaceState({}, '', url.toString())
@@ -112,7 +132,11 @@ async function refreshAccessToken(): Promise<string | null> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   })
-  if (!res.ok) return null
+  if (!res.ok) {
+    const errText = await res.text()
+    console.error('Spotify token refresh failed:', res.status, errText)
+    return null
+  }
   const data = await res.json()
   storeTokens({ ...data, refresh_token: data.refresh_token ?? refreshToken })
   return data.access_token
