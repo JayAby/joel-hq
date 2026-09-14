@@ -1,1 +1,0 @@
-{"root":["./src/App.tsx","./src/firebase.ts","./src/main.tsx","./src/spotify.ts","./src/types.ts","./src/vite-env.d.ts","./src/components/DragPct.tsx","./src/components/Editable.tsx","./src/components/NowPlaying.tsx","./src/components/Pomodoro.tsx","./src/components/ProgressList.tsx","./src/components/TaskList.tsx","./src/hooks/useSyncedState.ts"],"version":"5.9.3"}
