@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { notify } from '../notifications'
 
 export default function Pomodoro() {
   const [seconds, setSeconds] = useState(25 * 60)
@@ -14,6 +15,10 @@ export default function Pomodoro() {
           setMode((m) => {
             const next = m === 'FOCUS' ? 'BREAK' : 'FOCUS'
             setSeconds(next === 'FOCUS' ? 25 * 60 : 5 * 60)
+            notify(
+              next === 'BREAK' ? 'Focus session done 🎯' : "Break's over — back to it 💻",
+              next === 'BREAK' ? 'Time for a 5 minute break.' : 'Starting a new 25 minute focus block.',
+            )
             return next
           })
           return s

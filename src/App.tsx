@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSyncedState } from './hooks/useSyncedState'
 import { handleSpotifyRedirect } from './spotify'
+import { notificationPermission, requestNotificationPermission, notify } from './notifications'
 import Editable from './components/Editable'
 import DragPct from './components/DragPct'
 import ProgressList from './components/ProgressList'
@@ -28,10 +29,37 @@ function greetingFor(now: Date) {
 export default function App() {
   const { state, update, ready, synced } = useSyncedState()
   const now = useClock()
+  const [notifPerm, setNotifPerm] = useState(notificationPermission())
+  const notifiedRef = useRef<Set<number>>(new Set())
 
   useEffect(() => {
     handleSpotifyRedirect()
   }, [])
+
+  async function enableNotifications() {
+    const perm = await requestNotificationPermission()
+    setNotifPerm(perm)
+  }
+
+  // Clear "already notified" tracking whenever the day rolls over, so
+  // reminders can fire again tomorrow.
+  useEffect(() => {
+    notifiedRef.current = new Set()
+  }, [state.lastReset])
+
+  // Ping a notification the minute a task's scheduled start time arrives.
+  useEffect(() => {
+    if (notifPerm !== 'granted') return
+    const current = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    state.tasks.forEach((t, i) => {
+      if (!t.time || t.done) return
+      const start = t.time.split(/[-–]/)[0]?.trim()
+      if (start === current && !notifiedRef.current.has(i)) {
+        notifiedRef.current.add(i)
+        notify(`⏰ ${t.t}`, `Scheduled for ${t.time}`)
+      }
+    })
+  }, [now, state.tasks, notifPerm])
 
   // Reset today's tasks (and study checklist) once per new day.
   useEffect(() => {
@@ -67,6 +95,11 @@ export default function App() {
             <span className={`dot${synced && ready ? '' : ' off'}`} />{' '}
             {synced ? (ready ? 'synced' : 'connecting…') : 'local only — Firebase not set up yet'}
           </div>
+          {notifPerm !== 'granted' && (
+            <button className="card-link" style={{ marginTop: 6 }} onClick={enableNotifications}>
+              enable notifications
+            </button>
+          )}
         </div>
         <div className="clockbox">
           <div className="clock">
