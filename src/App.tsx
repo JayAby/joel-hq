@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useSyncedState } from './hooks/useSyncedState'
 import { handleSpotifyRedirect } from './spotify'
 import { notificationPermission, requestNotificationPermission, notify } from './notifications'
+import { mondayOf } from './types'
 import Editable from './components/Editable'
-import DragPct from './components/DragPct'
+import ProgressBar from './components/ProgressBar'
 import ProgressList from './components/ProgressList'
+import MoneyProgressList from './components/MoneyProgressList'
+import FitnessWeek from './components/FitnessWeek'
 import TaskList from './components/TaskList'
 import NowPlaying from './components/NowPlaying'
 import Pomodoro from './components/Pomodoro'
@@ -67,13 +70,23 @@ export default function App() {
         lastReset: today,
         tasks: prev.tasks.map((t) => ({ ...t, done: false })),
         study: prev.study.map((t) => ({ ...t, done: false })),
-        fitness: prev.fitness.map((t) => ({ ...t, done: false })),
       }))
     }
   }, [ready, now, state.lastReset, update])
 
+  useEffect(() => {
+    const thisMonday = mondayOf(now)
+    if (ready && state.lastWeekReset !== thisMonday) {
+      update((prev) => ({
+        ...prev,
+        lastWeekReset: thisMonday,
+        fitness: prev.fitness.map((d) => ({ ...d, done: false })),
+      }))
+    }
+  }, [ready, now, state.lastWeekReset, update])
+
   const studyDone = state.study.filter((t) => t.done).length
-  const fitnessDone = state.fitness.filter((t) => t.done).length
+  const fitnessDone = state.fitness.filter((d) => d.done).length
 
   return (
     <div className="page">
@@ -112,7 +125,6 @@ export default function App() {
       </div>
 
       <div className="grid">
-        {/* TODAY / SCHEDULE */}
         <div className="card accent-mint span-6">
           <div className="card-head">
             <div className="card-title">
@@ -134,7 +146,6 @@ export default function App() {
           />
         </div>
 
-        {/* CURRENT FOCUS */}
         <div className="card accent-amber span-6">
           <div className="card-head">
             <div className="card-title">
@@ -155,16 +166,13 @@ export default function App() {
               onChange={(v) => update((p) => ({ ...p, focus: { ...p.focus, next: v } }))}
             />
           </div>
-          <div className="pbar-track">
-            <div className="pbar-fill amber" style={{ width: `${state.focus.pct}%` }} />
-          </div>
-          <div className="pbar-label">
-            <span>progress</span>
-            <DragPct value={state.focus.pct} onChange={(v) => update((p) => ({ ...p, focus: { ...p.focus, pct: v } }))} />
-          </div>
+          <ProgressBar
+            value={state.focus.pct}
+            onChange={(v) => update((p) => ({ ...p, focus: { ...p.focus, pct: v } }))}
+            barClass="amber"
+          />
         </div>
 
-        {/* PROJECTS */}
         <div className="card accent-mint span-4">
           <div className="card-head">
             <div className="card-title">
@@ -182,7 +190,6 @@ export default function App() {
           <ProgressList items={state.projects} onChange={(projects) => update((p) => ({ ...p, projects }))} />
         </div>
 
-        {/* CAREER */}
         <div className="card accent-violet span-4">
           <div className="card-head">
             <div className="card-title">
@@ -198,7 +205,6 @@ export default function App() {
           <ProgressList items={state.career} onChange={(career) => update((p) => ({ ...p, career }))} barClass="violet" />
         </div>
 
-        {/* FINANCE: debts + savings */}
         <div className="card accent-mint span-4">
           <div className="card-head">
             <div className="card-title">
@@ -214,43 +220,32 @@ export default function App() {
 
           <div style={{ marginTop: 16 }}>
             <div className="section-label">Debts</div>
-            <ProgressList items={state.debts} onChange={(debts) => update((p) => ({ ...p, debts }))} showSub={false} />
-            <button
-              className="card-link"
-              style={{ marginTop: 8 }}
-              onClick={() => update((p) => ({ ...p, debts: [...p.debts, { name: 'New debt', pct: 0 }] }))}
-            >
-              + add debt
-            </button>
+            <MoneyProgressList items={state.debts} onChange={(debts) => update((p) => ({ ...p, debts }))} mode="debt" />
           </div>
 
           <div style={{ marginTop: 18 }}>
             <div className="section-label">Savings</div>
-            <ProgressList items={state.savings} onChange={(savings) => update((p) => ({ ...p, savings }))} showSub={false} />
-            <button
-              className="card-link"
-              style={{ marginTop: 8 }}
-              onClick={() => update((p) => ({ ...p, savings: [...p.savings, { name: 'New savings goal', pct: 0 }] }))}
-            >
-              + add savings goal
-            </button>
+            <MoneyProgressList
+              items={state.savings}
+              onChange={(savings) => update((p) => ({ ...p, savings }))}
+              mode="savings"
+              barClass="violet"
+            />
           </div>
         </div>
 
-        {/* FITNESS CHECK-IN */}
         <div className="card accent-rose span-4">
           <div className="card-head">
             <div className="card-title">
               <span>🏋🏾</span> Fitness Check-in
             </div>
             <div className="card-link">
-              {fitnessDone}/{state.fitness.length}
+              {fitnessDone}/{state.fitness.length} this week
             </div>
           </div>
-          <TaskList tasks={state.fitness} onChange={(fitness) => update((p) => ({ ...p, fitness }))} allowAdd />
+          <FitnessWeek days={state.fitness} onChange={(fitness) => update((p) => ({ ...p, fitness }))} />
         </div>
 
-        {/* STUDY TRACKER */}
         <div className="card accent-amber span-4">
           <div className="card-head">
             <div className="card-title">
@@ -263,7 +258,6 @@ export default function App() {
           <TaskList tasks={state.study} onChange={(study) => update((p) => ({ ...p, study }))} allowAdd />
         </div>
 
-        {/* GOALS */}
         <div className="card accent-mint span-6">
           <div className="card-head">
             <div className="card-title">
@@ -279,7 +273,6 @@ export default function App() {
           <ProgressList items={state.goals} onChange={(goals) => update((p) => ({ ...p, goals }))} showSub={false} />
         </div>
 
-        {/* QUICK NOTES */}
         <div className="card accent-violet span-6">
           <div className="card-head">
             <div className="card-title">
@@ -315,7 +308,6 @@ export default function App() {
         <NowPlaying />
         <Pomodoro />
 
-        {/* LINKS (merged Quick Launch + Quick Links) */}
         <div className="card accent-violet span-4">
           <div className="card-head">
             <div className="card-title">

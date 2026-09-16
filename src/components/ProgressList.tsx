@@ -1,6 +1,6 @@
 import { ProgressItem } from '../types'
 import Editable from './Editable'
-import DragPct from './DragPct'
+import ProgressBar from './ProgressBar'
 
 interface Props {
   items: ProgressItem[]
@@ -25,19 +25,14 @@ export default function ProgressList({ items, onChange, barClass = '', showSub =
         <div className="item" key={i}>
           <div className="item-top">
             <Editable className="item-name" value={item.name} onChange={(v) => update(i, { name: v })} />
-            <div className="item-top-right">
-              <DragPct value={item.pct} onChange={(v) => update(i, { pct: v })} />
-              <button className="del-btn" style={{ opacity: 0.5 }} onClick={() => remove(i)}>
-                ✕
-              </button>
-            </div>
+            <button className="del-btn" style={{ opacity: 0.5 }} onClick={() => remove(i)}>
+              ✕
+            </button>
           </div>
           {showSub && (
             <Editable className="item-sub" value={item.sub ?? ''} onChange={(v) => update(i, { sub: v })} />
           )}
-          <div className="pbar-track">
-            <div className={`pbar-fill ${barClass}`} style={{ width: `${item.pct}%` }} />
-          </div>
+          <ProgressBar value={item.pct} onChange={(v) => update(i, { pct: v })} barClass={barClass} />
         </div>
       ))}
     </div>

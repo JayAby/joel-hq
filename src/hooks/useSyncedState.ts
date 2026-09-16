@@ -1,15 +1,24 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore'
 import { db, ensureSignedIn, isFirebaseConfigured } from '../firebase'
-import { DEFAULT_STATE, DashboardState } from '../types'
+import { DEFAULT_STATE, DashboardState, MoneyItem, FitnessDay } from '../types'
 
 const DOC_REF_PATH = ['joelhq', 'state'] as const
 const LOCAL_KEY = 'joelhq-local-state'
 
-// Old saved data (from before the fitness/savings/links rework) can have
-// fields in the wrong shape — e.g. fitness used to be an object, now it's
-// a checklist array. Rather than crash on mismatched shapes, fall back to
-// the default for any field that isn't shaped the way we now expect.
+function isMoneyItemArray(arr: unknown): arr is MoneyItem[] {
+  return (
+    Array.isArray(arr) &&
+    arr.every((x) => x && typeof x.target === 'number' && typeof x.current === 'number')
+  )
+}
+function isFitnessDayArray(arr: unknown): arr is FitnessDay[] {
+  return (
+    Array.isArray(arr) &&
+    arr.every((x) => x && typeof x.day === 'string' && typeof x.workout === 'string')
+  )
+}
+
 function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
   const merged = { ...DEFAULT_STATE, ...raw }
   return {
@@ -17,9 +26,9 @@ function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
     tasks: Array.isArray(merged.tasks) ? merged.tasks : DEFAULT_STATE.tasks,
     projects: Array.isArray(merged.projects) ? merged.projects : DEFAULT_STATE.projects,
     career: Array.isArray(merged.career) ? merged.career : DEFAULT_STATE.career,
-    debts: Array.isArray(merged.debts) ? merged.debts : DEFAULT_STATE.debts,
-    savings: Array.isArray(merged.savings) ? merged.savings : DEFAULT_STATE.savings,
-    fitness: Array.isArray(merged.fitness) ? merged.fitness : DEFAULT_STATE.fitness,
+    debts: isMoneyItemArray(merged.debts) ? merged.debts : DEFAULT_STATE.debts,
+    savings: isMoneyItemArray(merged.savings) ? merged.savings : DEFAULT_STATE.savings,
+    fitness: isFitnessDayArray(merged.fitness) ? merged.fitness : DEFAULT_STATE.fitness,
     study: Array.isArray(merged.study) ? merged.study : DEFAULT_STATE.study,
     goals: Array.isArray(merged.goals) ? merged.goals : DEFAULT_STATE.goals,
     notes: Array.isArray(merged.notes) ? merged.notes : DEFAULT_STATE.notes,

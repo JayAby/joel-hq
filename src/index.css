@@ -235,3 +235,38 @@ a{ color: inherit; text-decoration: none; }
   width:44px; background:var(--surface-2); border:1px solid var(--line); border-radius:4px;
   color: var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:3px 5px; margin:0 4px;
 }
+
+.pbar-readout{ text-align:right; font-size:11px; color:var(--muted); margin-top:4px; }
+
+.pbar-controls{ display:flex; align-items:center; gap:8px; margin-top:8px; }
+.range-slider{
+  flex:1; -webkit-appearance:none; appearance:none; height:4px; border-radius:4px;
+  background: var(--surface-2); outline:none; cursor:pointer;
+}
+.range-slider::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none; width:14px; height:14px; border-radius:50%;
+  background: var(--mint); border:2px solid var(--bg); cursor:pointer;
+}
+.range-slider::-moz-range-thumb{
+  width:14px; height:14px; border-radius:50%; background: var(--mint); border:2px solid var(--bg); cursor:pointer;
+}
+.pct-input{
+  width:44px; background: var(--surface-2); border:1px solid var(--line); border-radius:4px;
+  color: var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:3px 4px; text-align:center;
+}
+.pct-sign{ color: var(--muted); font-size:11px; }
+
+.money-row{ display:flex; align-items:center; gap:6px; margin-top:8px; font-size:11px; color:var(--muted); }
+.money-label{ flex-shrink:0; }
+.money-slash{ color: var(--dim); }
+.money-input{
+  width:70px; background: var(--surface-2); border:1px solid var(--line); border-radius:4px;
+  color: var(--text); font-family:'IBM Plex Mono',monospace; font-size:12px; padding:3px 6px;
+}
+.money-remaining{ font-size:11px; color: var(--muted); margin-top:6px; }
+
+.fitweek-row{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px dashed var(--line); font-size:12.5px; }
+.fitweek-row:last-child{ border-bottom:none; }
+.fitweek-day{ width:34px; color:var(--muted); font-size:11px; flex-shrink:0; font-weight:600; }
+.fitweek-workout{ flex:1; outline:none; }
+.fitweek-row.done .fitweek-workout{ color: var(--dim); text-decoration: line-through; }
