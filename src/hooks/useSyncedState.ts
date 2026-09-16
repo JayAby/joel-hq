@@ -6,12 +6,33 @@ import { DEFAULT_STATE, DashboardState } from '../types'
 const DOC_REF_PATH = ['joelhq', 'state'] as const
 const LOCAL_KEY = 'joelhq-local-state'
 
+// Old saved data (from before the fitness/savings/links rework) can have
+// fields in the wrong shape — e.g. fitness used to be an object, now it's
+// a checklist array. Rather than crash on mismatched shapes, fall back to
+// the default for any field that isn't shaped the way we now expect.
+function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
+  const merged = { ...DEFAULT_STATE, ...raw }
+  return {
+    ...merged,
+    tasks: Array.isArray(merged.tasks) ? merged.tasks : DEFAULT_STATE.tasks,
+    projects: Array.isArray(merged.projects) ? merged.projects : DEFAULT_STATE.projects,
+    career: Array.isArray(merged.career) ? merged.career : DEFAULT_STATE.career,
+    debts: Array.isArray(merged.debts) ? merged.debts : DEFAULT_STATE.debts,
+    savings: Array.isArray(merged.savings) ? merged.savings : DEFAULT_STATE.savings,
+    fitness: Array.isArray(merged.fitness) ? merged.fitness : DEFAULT_STATE.fitness,
+    study: Array.isArray(merged.study) ? merged.study : DEFAULT_STATE.study,
+    goals: Array.isArray(merged.goals) ? merged.goals : DEFAULT_STATE.goals,
+    notes: Array.isArray(merged.notes) ? merged.notes : DEFAULT_STATE.notes,
+    links: Array.isArray(merged.links) ? merged.links : DEFAULT_STATE.links,
+  }
+}
+
 export function useSyncedState() {
   const [state, setState] = useState<DashboardState>(() => {
     if (!isFirebaseConfigured) {
       try {
         const raw = localStorage.getItem(LOCAL_KEY)
-        if (raw) return { ...DEFAULT_STATE, ...JSON.parse(raw) }
+        if (raw) return normalize(JSON.parse(raw))
       } catch {
         /* ignore parse errors, fall back to defaults */
       }
@@ -38,8 +59,8 @@ export function useSyncedState() {
           skipNextSnapshot.current = false
           return
         }
-        const data = docSnap.data() as DashboardState | undefined
-        if (data) setState({ ...DEFAULT_STATE, ...data })
+        const data = docSnap.data() as Partial<DashboardState> | undefined
+        setState(normalize(data))
         setReady(true)
       })
     })
