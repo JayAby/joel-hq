@@ -8,6 +8,7 @@ import ProgressList from './components/ProgressList'
 import TaskList from './components/TaskList'
 import NowPlaying from './components/NowPlaying'
 import Pomodoro from './components/Pomodoro'
+import LinksList from './components/LinksList'
 
 function useClock() {
   const [now, setNow] = useState(new Date())
@@ -41,13 +42,10 @@ export default function App() {
     setNotifPerm(perm)
   }
 
-  // Clear "already notified" tracking whenever the day rolls over, so
-  // reminders can fire again tomorrow.
   useEffect(() => {
     notifiedRef.current = new Set()
   }, [state.lastReset])
 
-  // Ping a notification the minute a task's scheduled start time arrives.
   useEffect(() => {
     if (notifPerm !== 'granted') return
     const current = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
@@ -61,7 +59,6 @@ export default function App() {
     })
   }, [now, state.tasks, notifPerm])
 
-  // Reset today's tasks (and study checklist) once per new day.
   useEffect(() => {
     const today = now.toDateString()
     if (ready && state.lastReset !== today) {
@@ -70,11 +67,13 @@ export default function App() {
         lastReset: today,
         tasks: prev.tasks.map((t) => ({ ...t, done: false })),
         study: prev.study.map((t) => ({ ...t, done: false })),
+        fitness: prev.fitness.map((t) => ({ ...t, done: false })),
       }))
     }
   }, [ready, now, state.lastReset, update])
 
   const studyDone = state.study.filter((t) => t.done).length
+  const fitnessDone = state.fitness.filter((t) => t.done).length
 
   return (
     <div className="page">
@@ -97,7 +96,7 @@ export default function App() {
           </div>
           {notifPerm !== 'granted' && (
             <button className="card-link" style={{ marginTop: 6 }} onClick={enableNotifications}>
-              enable notifications
+              🔔 enable notifications
             </button>
           )}
         </div>
@@ -108,17 +107,13 @@ export default function App() {
           <div className="date">
             {now.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
           </div>
-          <Editable
-            className="quote"
-            value={state.quote}
-            onChange={(v) => update((p) => ({ ...p, quote: v }))}
-          />
+          <Editable className="quote" value={state.quote} onChange={(v) => update((p) => ({ ...p, quote: v }))} />
         </div>
       </div>
 
       <div className="grid">
-        {/* TODAY */}
-        <div className="card accent-mint span-5">
+        {/* TODAY / SCHEDULE */}
+        <div className="card accent-mint span-6">
           <div className="card-head">
             <div className="card-title">
               <span>🎯</span> Today
@@ -135,11 +130,12 @@ export default function App() {
             onChange={(tasks) => update((p) => ({ ...p, tasks }))}
             showTime
             allowAdd
+            allowTimeInput
           />
         </div>
 
         {/* CURRENT FOCUS */}
-        <div className="card accent-amber span-7">
+        <div className="card accent-amber span-6">
           <div className="card-head">
             <div className="card-title">
               <span>🔭</span> Current Focus
@@ -164,10 +160,7 @@ export default function App() {
           </div>
           <div className="pbar-label">
             <span>progress</span>
-            <DragPct
-              value={state.focus.pct}
-              onChange={(v) => update((p) => ({ ...p, focus: { ...p.focus, pct: v } }))}
-            />
+            <DragPct value={state.focus.pct} onChange={(v) => update((p) => ({ ...p, focus: { ...p.focus, pct: v } }))} />
           </div>
         </div>
 
@@ -197,9 +190,7 @@ export default function App() {
             </div>
             <button
               className="card-link"
-              onClick={() =>
-                update((p) => ({ ...p, career: [...p.career, { name: 'New item', sub: '', pct: 0 }] }))
-              }
+              onClick={() => update((p) => ({ ...p, career: [...p.career, { name: 'New item', sub: '', pct: 0 }] }))}
             >
               + add
             </button>
@@ -207,36 +198,7 @@ export default function App() {
           <ProgressList items={state.career} onChange={(career) => update((p) => ({ ...p, career }))} barClass="violet" />
         </div>
 
-        {/* QUICK LAUNCH */}
-        <div className="card accent-violet span-4">
-          <div className="card-head">
-            <div className="card-title">
-              <span>⚡</span> Quick Launch
-            </div>
-          </div>
-          <div className="launch-grid">
-            <a className="launch-btn" href="vscode://file/" target="_blank" rel="noreferrer">
-              <span className="launch-ico">💻</span>VS Code
-            </a>
-            <a className="launch-btn" href="https://github.com" target="_blank" rel="noreferrer">
-              <span className="launch-ico">🐙</span>GitHub
-            </a>
-            <a className="launch-btn" href="#" target="_blank" rel="noreferrer">
-              <span className="launch-ico">🧠</span>StudyPulse
-            </a>
-            <a className="launch-btn" href="https://open.spotify.com" target="_blank" rel="noreferrer">
-              <span className="launch-ico">🎧</span>Spotify
-            </a>
-            <a className="launch-btn" href="https://notion.so" target="_blank" rel="noreferrer">
-              <span className="launch-ico">📓</span>Notion
-            </a>
-            <a className="launch-btn" href="#" target="_blank" rel="noreferrer">
-              <span className="launch-ico">🌐</span>Browser
-            </a>
-          </div>
-        </div>
-
-        {/* FINANCE */}
+        {/* FINANCE: debts + savings */}
         <div className="card accent-mint span-4">
           <div className="card-head">
             <div className="card-title">
@@ -249,87 +211,43 @@ export default function App() {
             value={state.balanceDelta}
             onChange={(v) => update((p) => ({ ...p, balanceDelta: v }))}
           />
-          <div style={{ marginTop: 14 }}>
-            {state.debts.map((d, i) => (
-              <div className="debt-row" key={i}>
-                <div className="debt-top">
-                  <Editable
-                    className="debt-name"
-                    value={d.name}
-                    onChange={(v) => {
-                      const next = state.debts.slice()
-                      next[i] = { ...next[i], name: v }
-                      update((p) => ({ ...p, debts: next }))
-                    }}
-                  />
-                  <DragPct
-                    className="debt-pct"
-                    value={d.pct}
-                    onChange={(v) => {
-                      const next = state.debts.slice()
-                      next[i] = { ...next[i], pct: v }
-                      update((p) => ({ ...p, debts: next }))
-                    }}
-                  />
-                </div>
-                <div className="pbar-track">
-                  <div className="pbar-fill" style={{ width: `${d.pct}%` }} />
-                </div>
-              </div>
-            ))}
+
+          <div style={{ marginTop: 16 }}>
+            <div className="section-label">Debts</div>
+            <ProgressList items={state.debts} onChange={(debts) => update((p) => ({ ...p, debts }))} showSub={false} />
+            <button
+              className="card-link"
+              style={{ marginTop: 8 }}
+              onClick={() => update((p) => ({ ...p, debts: [...p.debts, { name: 'New debt', pct: 0 }] }))}
+            >
+              + add debt
+            </button>
           </div>
-          <button
-            className="card-link"
-            style={{ marginTop: 10 }}
-            onClick={() => update((p) => ({ ...p, debts: [...p.debts, { name: 'New debt', pct: 0 }] }))}
-          >
-            + add
-          </button>
+
+          <div style={{ marginTop: 18 }}>
+            <div className="section-label">Savings</div>
+            <ProgressList items={state.savings} onChange={(savings) => update((p) => ({ ...p, savings }))} showSub={false} />
+            <button
+              className="card-link"
+              style={{ marginTop: 8 }}
+              onClick={() => update((p) => ({ ...p, savings: [...p.savings, { name: 'New savings goal', pct: 0 }] }))}
+            >
+              + add savings goal
+            </button>
+          </div>
         </div>
 
-        {/* FITNESS */}
+        {/* FITNESS CHECK-IN */}
         <div className="card accent-rose span-4">
           <div className="card-head">
             <div className="card-title">
-              <span>🏋🏾</span> Fitness
+              <span>🏋🏾</span> Fitness Check-in
+            </div>
+            <div className="card-link">
+              {fitnessDone}/{state.fitness.length}
             </div>
           </div>
-          <div className="fit-grid">
-            <div className="ring-wrap">
-              <Editable
-                className="ring-val"
-                value={state.fitness.weight}
-                onChange={(v) => update((p) => ({ ...p, fitness: { ...p.fitness, weight: v } }))}
-              />
-              <div className="ring-label">current weight</div>
-            </div>
-            <div>
-              <div className="fit-stat">
-                <div className="fit-stat-label">Workout</div>
-                <Editable
-                  className="fit-stat-val"
-                  value={state.fitness.workout}
-                  onChange={(v) => update((p) => ({ ...p, fitness: { ...p.fitness, workout: v } }))}
-                />
-              </div>
-              <div className="fit-stat">
-                <div className="fit-stat-label">Protein</div>
-                <Editable
-                  className="fit-stat-val"
-                  value={state.fitness.protein}
-                  onChange={(v) => update((p) => ({ ...p, fitness: { ...p.fitness, protein: v } }))}
-                />
-              </div>
-              <div className="fit-stat">
-                <div className="fit-stat-label">Steps</div>
-                <Editable
-                  className="fit-stat-val"
-                  value={state.fitness.steps}
-                  onChange={(v) => update((p) => ({ ...p, fitness: { ...p.fitness, steps: v } }))}
-                />
-              </div>
-            </div>
-          </div>
+          <TaskList tasks={state.fitness} onChange={(fitness) => update((p) => ({ ...p, fitness }))} allowAdd />
         </div>
 
         {/* STUDY TRACKER */}
@@ -342,7 +260,7 @@ export default function App() {
               {studyDone}/{state.study.length}
             </div>
           </div>
-          <TaskList tasks={state.study} onChange={(study) => update((p) => ({ ...p, study }))} />
+          <TaskList tasks={state.study} onChange={(study) => update((p) => ({ ...p, study }))} allowAdd />
         </div>
 
         {/* GOALS */}
@@ -397,19 +315,14 @@ export default function App() {
         <NowPlaying />
         <Pomodoro />
 
-        {/* QUICK LINKS */}
+        {/* LINKS (merged Quick Launch + Quick Links) */}
         <div className="card accent-violet span-4">
           <div className="card-head">
             <div className="card-title">
-              <span>🔗</span> Quick Links
+              <span>🔗</span> Links
             </div>
           </div>
-          {state.links.map((l, i) => (
-            <a className="link-row" href={l.url} target="_blank" rel="noreferrer" key={i}>
-              <div className="link-name">{l.name}</div>
-              <div>›</div>
-            </a>
-          ))}
+          <LinksList links={state.links} onChange={(links) => update((p) => ({ ...p, links }))} />
         </div>
       </div>
 

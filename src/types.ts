@@ -21,13 +21,6 @@ export interface Focus {
   pct: number
 }
 
-export interface Fitness {
-  weight: string
-  workout: string
-  protein: string
-  steps: string
-}
-
 export interface DashboardState {
   lastReset: string
   tasks: Task[]
@@ -37,7 +30,8 @@ export interface DashboardState {
   balance: string
   balanceDelta: string
   debts: ProgressItem[]
-  fitness: Fitness
+  savings: ProgressItem[]
+  fitness: Task[]
   study: Task[]
   goals: ProgressItem[]
   notes: string[]
@@ -47,53 +41,27 @@ export interface DashboardState {
 
 export const DEFAULT_STATE: DashboardState = {
   lastReset: new Date().toDateString(),
-  tasks: [
-    { t: 'Code for 2 hours', time: '09:00–11:00', done: false },
-    { t: 'StudyPulse (backend)', time: '11:00–13:00', done: false },
-    { t: 'Gym', time: '16:00–17:30', done: false },
-    { t: 'MSc admin (ARU)', time: '19:00–20:00', done: false },
+  tasks: [],
+  focus: { title: 'What are you working on?', next: '', pct: 0 },
+  projects: [],
+  career: [],
+  balance: '£0.00',
+  balanceDelta: '',
+  debts: [],
+  savings: [],
+  fitness: [
+    { t: 'Workout', done: false },
+    { t: 'Protein target', done: false },
+    { t: 'Creatine', done: false },
+    { t: 'Steps goal', done: false },
   ],
-  focus: { title: 'Building StudyPulse backend', next: 'Set up PostgreSQL models', pct: 70 },
-  projects: [
-    { name: 'StudyPulse', sub: 'AI study companion (FastAPI + React)', pct: 70 },
-    { name: 'SYNCHRO', sub: 'Fragrance app (React + FastAPI)', pct: 40 },
-    { name: 'Portfolio', sub: 'Personal website (Next.js)', pct: 20 },
-  ],
-  career: [
-    { name: 'MSc AI (ARU)', sub: '10 Sep 2026 – 6 Oct 2028', pct: 15 },
-    { name: 'PhD Opportunities', sub: 'Research + applications', pct: 30 },
-    { name: 'Job Applications', sub: 'Revolut / Elwood / Lockwood', pct: 20 },
-  ],
-  balance: '£1,234.56',
-  balanceDelta: '↑ +£120 this month',
-  debts: [
-    { name: 'Monzo CC', pct: 72 },
-    { name: 'Chase CC', pct: 45 },
-    { name: 'Lloyds OD', pct: 60 },
-    { name: 'Klarna', pct: 15 },
-  ],
-  fitness: { weight: '68.5kg', workout: '4x / week', protein: '120–150g', steps: '8,000 / 10,000' },
-  study: [
-    { t: 'Code', done: false },
-    { t: 'Study', done: false },
-    { t: 'Read', done: false },
-    { t: 'Learn', done: false },
-  ],
-  goals: [
-    { name: 'Debt free by Dec 2026', pct: 45 },
-    { name: 'Move out', pct: 30 },
-    { name: 'Save £200–350/month', pct: 20 },
-  ],
-  notes: [
-    'Email Prof. Y Moshfeghi (Strathclyde PhD)',
-    'Update CV & LinkedIn',
-    'Plan weekend (gym + food prep)',
-  ],
+  study: [{ t: 'Study', done: false }],
+  goals: [],
+  notes: [],
   links: [
-    { name: 'ARU Student Portal', url: '#' },
+    { name: 'VS Code', url: 'vscode://file/' },
     { name: 'GitHub', url: 'https://github.com' },
-    { name: 'LinkedIn', url: 'https://linkedin.com' },
-    { name: 'Email', url: 'mailto:' },
+    { name: 'Spotify', url: 'https://open.spotify.com' },
   ],
   quote: 'Discipline builds the freedom you want.',
 }

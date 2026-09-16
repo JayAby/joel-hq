@@ -7,10 +7,18 @@ interface Props {
   onChange: (tasks: Task[]) => void
   showTime?: boolean
   allowAdd?: boolean
+  allowTimeInput?: boolean
 }
 
-export default function TaskList({ tasks, onChange, showTime = false, allowAdd = false }: Props) {
-  const [draft, setDraft] = useState('')
+export default function TaskList({
+  tasks,
+  onChange,
+  showTime = false,
+  allowAdd = false,
+  allowTimeInput = false,
+}: Props) {
+  const [draftText, setDraftText] = useState('')
+  const [draftTime, setDraftTime] = useState('')
 
   function toggle(i: number) {
     const next = tasks.slice()
@@ -22,13 +30,19 @@ export default function TaskList({ tasks, onChange, showTime = false, allowAdd =
     next[i] = { ...next[i], t: val.trim() }
     onChange(next)
   }
+  function editTime(i: number, val: string) {
+    const next = tasks.slice()
+    next[i] = { ...next[i], time: val }
+    onChange(next)
+  }
   function remove(i: number) {
     onChange(tasks.filter((_, idx) => idx !== i))
   }
   function add() {
-    if (!draft.trim()) return
-    onChange([...tasks, { t: draft.trim(), done: false }])
-    setDraft('')
+    if (!draftText.trim()) return
+    onChange([...tasks, { t: draftText.trim(), time: draftTime || undefined, done: false }])
+    setDraftText('')
+    setDraftTime('')
   }
 
   return (
@@ -39,7 +53,14 @@ export default function TaskList({ tasks, onChange, showTime = false, allowAdd =
             ✓
           </button>
           <Editable className="task-text" value={task.t} onChange={(v) => editText(i, v)} />
-          {showTime && task.time && <div className="task-time">{task.time}</div>}
+          {showTime && (
+            <input
+              type="time"
+              className="task-time-input"
+              value={task.time ?? ''}
+              onChange={(e) => editTime(i, e.target.value)}
+            />
+          )}
           <button className="del-btn" onClick={() => remove(i)}>
             ✕
           </button>
@@ -48,11 +69,19 @@ export default function TaskList({ tasks, onChange, showTime = false, allowAdd =
       {allowAdd && (
         <div className="add-row">
           <input
-            value={draft}
+            value={draftText}
             placeholder="add a task..."
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => setDraftText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && add()}
           />
+          {allowTimeInput && (
+            <input
+              type="time"
+              className="add-time-input"
+              value={draftTime}
+              onChange={(e) => setDraftTime(e.target.value)}
+            />
+          )}
           <button className="add-btn" onClick={add}>
             add
           </button>
