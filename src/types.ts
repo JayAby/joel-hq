@@ -4,18 +4,6 @@ export interface Task {
   done: boolean
 }
 
-export interface ProgressItem {
-  name: string
-  sub?: string
-  pct: number
-}
-
-export interface MilestoneItem {
-  name: string
-  sub?: string
-  subtasks: Task[]
-}
-
 export interface MoneyItem {
   name: string
   target: number
@@ -59,8 +47,6 @@ export interface LinkItem {
 }
 
 export interface Focus {
-  title: string
-  next: string
   subtasks: Task[]
 }
 
@@ -69,15 +55,15 @@ export interface DashboardState {
   lastWeekReset: string
   tasks: Task[]
   focus: Focus
-  projects: MilestoneItem[]
-  career: MilestoneItem[]
+  projects: Task[]
+  career: Task[]
   balance: string
   balanceDelta: string
   debts: MoneyItem[]
   savings: SavingsItem[]
   fitness: FitnessState
   study: StudyState
-  goals: ProgressItem[]
+  goals: Task[]
   notes: string[]
   links: LinkItem[]
   quote: string
@@ -95,34 +81,62 @@ export function mondayOf(d: Date): string {
 export const DEFAULT_STATE: DashboardState = {
   lastReset: new Date().toDateString(),
   lastWeekReset: mondayOf(new Date()),
-  tasks: [],
-  focus: { title: 'What are you working on?', next: '', subtasks: [] },
-  projects: [],
-  career: [],
-  balance: '£0.00',
-  balanceDelta: '',
-  debts: [],
-  savings: [],
+  tasks: [
+    { t: 'Code for 2 hours', time: '09:00', done: false },
+    { t: 'Deep work session', time: '11:00', done: false },
+    { t: 'Gym', time: '17:00', done: false },
+    { t: 'Wind down / plan tomorrow', time: '20:30', done: false },
+  ],
+  focus: {
+    subtasks: [
+      { t: 'Set up the project structure', done: false },
+      { t: 'Build the core feature', done: false },
+      { t: 'Test it end to end', done: false },
+    ],
+  },
+  projects: [
+    { t: 'Example project — rename or delete me', done: false },
+    { t: 'Portfolio site', done: false },
+  ],
+  career: [
+    { t: 'Update CV & LinkedIn', done: false },
+    { t: 'Apply to 1 role this week', done: false },
+  ],
+  balance: '£1,234.56',
+  balanceDelta: '↑ +£120 this month',
+  debts: [{ name: 'Example debt — rename me', target: 1000, current: 250 }],
+  savings: [{ name: 'Example goal — rename me', target: 500, saved: 100, withdrawn: 0 }],
   fitness: {
-    weight: '',
-    lastWeekWeight: '',
+    weight: '70kg',
+    lastWeekWeight: '70.5kg',
     goalDaysPerWeek: 4,
-    days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => ({
-      day,
-      workout: '',
-      done: false,
-    })),
+    days: [
+      { day: 'Mon', workout: 'Push', done: false },
+      { day: 'Tue', workout: 'Rest', done: false },
+      { day: 'Wed', workout: 'Pull', done: false },
+      { day: 'Thu', workout: 'Rest', done: false },
+      { day: 'Fri', workout: 'Legs', done: false },
+      { day: 'Sat', workout: 'Full body', done: false },
+      { day: 'Sun', workout: 'Rest', done: false },
+    ],
   },
   study: {
     goalDaysPerWeek: 4,
-    days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => ({
-      day,
-      subject: '',
-      done: false,
-    })),
+    days: [
+      { day: 'Mon', subject: 'MSc coursework', done: false },
+      { day: 'Tue', subject: '', done: false },
+      { day: 'Wed', subject: 'MSc coursework', done: false },
+      { day: 'Thu', subject: '', done: false },
+      { day: 'Fri', subject: 'Reading', done: false },
+      { day: 'Sat', subject: '', done: false },
+      { day: 'Sun', subject: 'Review week', done: false },
+    ],
   },
-  goals: [],
-  notes: [],
+  goals: [
+    { t: 'Example goal — rename or delete me', done: false },
+    { t: 'Debt free by December', done: false },
+  ],
+  notes: ['Example note — click to edit, ✕ to delete'],
   links: [
     { name: 'VS Code', url: 'vscode://file/' },
     { name: 'GitHub', url: 'https://github.com' },

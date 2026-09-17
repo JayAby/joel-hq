@@ -6,8 +6,6 @@ import {
   DashboardState,
   Task,
   Focus,
-  MilestoneItem,
-  ProgressItem,
   MoneyItem,
   SavingsItem,
   FitnessState,
@@ -21,13 +19,7 @@ function isTaskArray(arr: unknown): arr is Task[] {
   return Array.isArray(arr) && arr.every((x) => x && typeof x.t === 'string' && typeof x.done === 'boolean')
 }
 function isFocus(x: unknown): x is Focus {
-  return !!x && typeof x === 'object' && typeof (x as any).title === 'string' && Array.isArray((x as any).subtasks)
-}
-function isMilestoneItemArray(arr: unknown): arr is MilestoneItem[] {
-  return Array.isArray(arr) && arr.every((x) => x && typeof x.name === 'string' && Array.isArray(x.subtasks))
-}
-function isProgressItemArray(arr: unknown): arr is ProgressItem[] {
-  return Array.isArray(arr) && arr.every((x) => x && typeof x.name === 'string' && typeof x.pct === 'number')
+  return !!x && typeof x === 'object' && Array.isArray((x as any).subtasks)
 }
 function isMoneyItemArray(arr: unknown): arr is MoneyItem[] {
   return (
@@ -57,13 +49,13 @@ function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
     ...merged,
     tasks: isTaskArray(merged.tasks) ? merged.tasks : DEFAULT_STATE.tasks,
     focus: isFocus(merged.focus) ? merged.focus : DEFAULT_STATE.focus,
-    projects: isMilestoneItemArray(merged.projects) ? merged.projects : DEFAULT_STATE.projects,
-    career: isMilestoneItemArray(merged.career) ? merged.career : DEFAULT_STATE.career,
+    projects: isTaskArray(merged.projects) ? merged.projects : DEFAULT_STATE.projects,
+    career: isTaskArray(merged.career) ? merged.career : DEFAULT_STATE.career,
     debts: isMoneyItemArray(merged.debts) ? merged.debts : DEFAULT_STATE.debts,
     savings: isSavingsItemArray(merged.savings) ? merged.savings : DEFAULT_STATE.savings,
     fitness: isFitnessState(merged.fitness) ? merged.fitness : DEFAULT_STATE.fitness,
     study: isStudyState(merged.study) ? merged.study : DEFAULT_STATE.study,
-    goals: isProgressItemArray(merged.goals) ? merged.goals : DEFAULT_STATE.goals,
+    goals: isTaskArray(merged.goals) ? merged.goals : DEFAULT_STATE.goals,
     notes: Array.isArray(merged.notes) ? merged.notes : DEFAULT_STATE.notes,
     links: Array.isArray(merged.links) ? merged.links : DEFAULT_STATE.links,
   }

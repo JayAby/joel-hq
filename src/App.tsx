@@ -2,20 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import { useSyncedState } from './hooks/useSyncedState'
 import { handleSpotifyRedirect } from './spotify'
 import { notificationPermission, requestNotificationPermission, notify } from './notifications'
-import { mondayOf } from './types'
+import { mondayOf, Task } from './types'
 import Editable from './components/Editable'
 import ProgressBar from './components/ProgressBar'
-import ProgressList from './components/ProgressList'
-import MilestoneList from './components/MilestoneList'
 import SubtaskChecklist from './components/SubtaskChecklist'
 import MoneyProgressList from './components/MoneyProgressList'
 import SavingsProgressList from './components/SavingsProgressList'
-import FitnessWeek from './components/FitnessWeek'
+import { FitnessWeightPanel, FitnessWorkoutsPanel } from './components/FitnessWeek'
 import StudyWeek from './components/StudyWeek'
 import TaskList from './components/TaskList'
 import NowPlaying from './components/NowPlaying'
 import Pomodoro from './components/Pomodoro'
 import LinksList from './components/LinksList'
+import SwipeTabs from './components/SwipeTabs'
 
 function useClock() {
   const [now, setNow] = useState(new Date())
@@ -32,6 +31,42 @@ function greetingFor(now: Date) {
   if (h < 12) return 'Good morning, Joel.'
   if (h < 18) return 'Good afternoon, Joel.'
   return 'Good evening, Joel.'
+}
+
+function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + (m || 0)
+}
+
+function getCurrentAndNext(tasks: Task[], now: Date) {
+  const timed = tasks
+    .filter((t) => t.time)
+    .map((t) => ({ ...t, minutes: toMinutes(t.time!) }))
+    .sort((a, b) => a.minutes - b.minutes)
+
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  let current: (Task & { minutes: number }) | null = null
+  let next: (Task & { minutes: number }) | null = null
+
+  for (const t of timed) {
+    if (t.minutes <= nowMin) current = t
+    else {
+      next = t
+      break
+    }
+  }
+  return { current, next }
+}
+
+function timezoneLabel(now: Date) {
+  try {
+    const part = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
+      .formatToParts(now)
+      .find((p) => p.type === 'timeZoneName')
+    return part?.value ?? ''
+  } catch {
+    return ''
+  }
 }
 
 export default function App() {
@@ -58,15 +93,13 @@ export default function App() {
     const current = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
     state.tasks.forEach((t, i) => {
       if (!t.time || t.done) return
-      const start = t.time.split(/[-–]/)[0]?.trim()
-      if (start === current && !notifiedRef.current.has(i)) {
+      if (t.time === current && !notifiedRef.current.has(i)) {
         notifiedRef.current.add(i)
         notify(`⏰ ${t.t}`, `Scheduled for ${t.time}`)
       }
     })
   }, [now, state.tasks, notifPerm])
 
-  // Daily reset: today's tasks.
   useEffect(() => {
     const today = now.toDateString()
     if (ready && state.lastReset !== today) {
@@ -78,7 +111,6 @@ export default function App() {
     }
   }, [ready, now, state.lastReset, update])
 
-  // Weekly reset: fitness + study check-ins clear, weight gets snapshotted for the delta comparison.
   useEffect(() => {
     const thisMonday = mondayOf(now)
     if (ready && state.lastWeekReset !== thisMonday) {
@@ -102,6 +134,7 @@ export default function App() {
   const focusPct = state.focus.subtasks.length
     ? Math.round((focusDone / state.focus.subtasks.length) * 100)
     : 0
+  const { current: currentTask, next: nextTask } = getCurrentAndNext(state.tasks, now)
 
   return (
     <div className="page">
@@ -134,6 +167,8 @@ export default function App() {
           </div>
           <div className="date">
             {now.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+            {' · '}
+            {timezoneLabel(now)}
           </div>
           <Editable className="quote" value={state.quote} onChange={(v) => update((p) => ({ ...p, quote: v }))} />
         </div>
@@ -167,19 +202,9 @@ export default function App() {
               <span>🔭</span> Current Focus
             </div>
           </div>
-          <Editable
-            className="focus-title"
-            value={state.focus.title}
-            onChange={(v) => update((p) => ({ ...p, focus: { ...p.focus, title: v } }))}
-          />
+          <div className="focus-title">{currentTask ? currentTask.t : 'Nothing scheduled yet'}</div>
           <div className="focus-next">
-            <b>Next up:</b>{' '}
-            <Editable
-              as="span"
-              className="focus-next-text"
-              value={state.focus.next}
-              onChange={(v) => update((p) => ({ ...p, focus: { ...p.focus, next: v } }))}
-            />
+            <b>Next up:</b> {nextTask ? nextTask.t : currentTask ? 'Nothing else scheduled today' : '—'}
           </div>
           <ProgressBar value={focusPct} barClass="amber" readOnly />
           <SubtaskChecklist
@@ -193,16 +218,8 @@ export default function App() {
             <div className="card-title">
               <span>💻</span> Projects
             </div>
-            <button
-              className="card-link"
-              onClick={() =>
-                update((p) => ({ ...p, projects: [...p.projects, { name: 'New project', sub: '', subtasks: [] }] }))
-              }
-            >
-              + add
-            </button>
           </div>
-          <MilestoneList items={state.projects} onChange={(projects) => update((p) => ({ ...p, projects }))} />
+          <TaskList tasks={state.projects} onChange={(projects) => update((p) => ({ ...p, projects }))} allowAdd />
         </div>
 
         <div className="card accent-violet span-4">
@@ -210,16 +227,8 @@ export default function App() {
             <div className="card-title">
               <span>🎓</span> Career &amp; Education
             </div>
-            <button
-              className="card-link"
-              onClick={() =>
-                update((p) => ({ ...p, career: [...p.career, { name: 'New item', sub: '', subtasks: [] }] }))
-              }
-            >
-              + add
-            </button>
           </div>
-          <MilestoneList items={state.career} onChange={(career) => update((p) => ({ ...p, career }))} barClass="violet" />
+          <TaskList tasks={state.career} onChange={(career) => update((p) => ({ ...p, career }))} allowAdd />
         </div>
 
         <div className="card accent-mint span-4">
@@ -234,32 +243,58 @@ export default function App() {
             value={state.balanceDelta}
             onChange={(v) => update((p) => ({ ...p, balanceDelta: v }))}
           />
-
           <div style={{ marginTop: 16 }}>
-            <div className="section-label">Debts</div>
-            <MoneyProgressList items={state.debts} onChange={(debts) => update((p) => ({ ...p, debts }))} />
-          </div>
-
-          <div style={{ marginTop: 18 }}>
-            <div className="section-label">Savings</div>
-            <SavingsProgressList
-              items={state.savings}
-              onChange={(savings) => update((p) => ({ ...p, savings }))}
-              barClass="violet"
+            <SwipeTabs
+              tabs={[
+                {
+                  label: 'Debts',
+                  content: (
+                    <MoneyProgressList items={state.debts} onChange={(debts) => update((p) => ({ ...p, debts }))} />
+                  ),
+                },
+                {
+                  label: 'Savings',
+                  content: (
+                    <SavingsProgressList
+                      items={state.savings}
+                      onChange={(savings) => update((p) => ({ ...p, savings }))}
+                      barClass="violet"
+                    />
+                  ),
+                },
+              ]}
             />
           </div>
         </div>
 
-        <div className="card accent-rose span-4">
+        <div className="card accent-rose span-6">
           <div className="card-head">
             <div className="card-title">
               <span>🏋🏾</span> Fitness Check-in
             </div>
           </div>
-          <FitnessWeek fitness={state.fitness} onChange={(fitness) => update((p) => ({ ...p, fitness }))} />
+          <SwipeTabs
+            tabs={[
+              {
+                label: 'Weight',
+                content: (
+                  <FitnessWeightPanel fitness={state.fitness} onChange={(fitness) => update((p) => ({ ...p, fitness }))} />
+                ),
+              },
+              {
+                label: 'Workouts',
+                content: (
+                  <FitnessWorkoutsPanel
+                    fitness={state.fitness}
+                    onChange={(fitness) => update((p) => ({ ...p, fitness }))}
+                  />
+                ),
+              },
+            ]}
+          />
         </div>
 
-        <div className="card accent-amber span-4">
+        <div className="card accent-amber span-6">
           <div className="card-head">
             <div className="card-title">
               <span>📚</span> Study Tracker
@@ -273,14 +308,8 @@ export default function App() {
             <div className="card-title">
               <span>🎯</span> Goals
             </div>
-            <button
-              className="card-link"
-              onClick={() => update((p) => ({ ...p, goals: [...p.goals, { name: 'New goal', pct: 0 }] }))}
-            >
-              + add
-            </button>
           </div>
-          <ProgressList items={state.goals} onChange={(goals) => update((p) => ({ ...p, goals }))} showSub={false} />
+          <TaskList tasks={state.goals} onChange={(goals) => update((p) => ({ ...p, goals }))} allowAdd />
         </div>
 
         <div className="card accent-violet span-6">
