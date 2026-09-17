@@ -6,8 +6,12 @@ import { mondayOf } from './types'
 import Editable from './components/Editable'
 import ProgressBar from './components/ProgressBar'
 import ProgressList from './components/ProgressList'
+import MilestoneList from './components/MilestoneList'
+import SubtaskChecklist from './components/SubtaskChecklist'
 import MoneyProgressList from './components/MoneyProgressList'
+import SavingsProgressList from './components/SavingsProgressList'
 import FitnessWeek from './components/FitnessWeek'
+import StudyWeek from './components/StudyWeek'
 import TaskList from './components/TaskList'
 import NowPlaying from './components/NowPlaying'
 import Pomodoro from './components/Pomodoro'
@@ -62,6 +66,7 @@ export default function App() {
     })
   }, [now, state.tasks, notifPerm])
 
+  // Daily reset: today's tasks.
   useEffect(() => {
     const today = now.toDateString()
     if (ready && state.lastReset !== today) {
@@ -69,24 +74,34 @@ export default function App() {
         ...prev,
         lastReset: today,
         tasks: prev.tasks.map((t) => ({ ...t, done: false })),
-        study: prev.study.map((t) => ({ ...t, done: false })),
       }))
     }
   }, [ready, now, state.lastReset, update])
 
+  // Weekly reset: fitness + study check-ins clear, weight gets snapshotted for the delta comparison.
   useEffect(() => {
     const thisMonday = mondayOf(now)
     if (ready && state.lastWeekReset !== thisMonday) {
       update((prev) => ({
         ...prev,
         lastWeekReset: thisMonday,
-        fitness: prev.fitness.map((d) => ({ ...d, done: false })),
+        fitness: {
+          ...prev.fitness,
+          lastWeekWeight: prev.fitness.weight,
+          days: prev.fitness.days.map((d) => ({ ...d, done: false })),
+        },
+        study: {
+          ...prev.study,
+          days: prev.study.days.map((d) => ({ ...d, done: false })),
+        },
       }))
     }
   }, [ready, now, state.lastWeekReset, update])
 
-  const studyDone = state.study.filter((t) => t.done).length
-  const fitnessDone = state.fitness.filter((d) => d.done).length
+  const focusDone = state.focus.subtasks.filter((t) => t.done).length
+  const focusPct = state.focus.subtasks.length
+    ? Math.round((focusDone / state.focus.subtasks.length) * 100)
+    : 0
 
   return (
     <div className="page">
@@ -166,10 +181,10 @@ export default function App() {
               onChange={(v) => update((p) => ({ ...p, focus: { ...p.focus, next: v } }))}
             />
           </div>
-          <ProgressBar
-            value={state.focus.pct}
-            onChange={(v) => update((p) => ({ ...p, focus: { ...p.focus, pct: v } }))}
-            barClass="amber"
+          <ProgressBar value={focusPct} barClass="amber" readOnly />
+          <SubtaskChecklist
+            items={state.focus.subtasks}
+            onChange={(subtasks) => update((p) => ({ ...p, focus: { ...p.focus, subtasks } }))}
           />
         </div>
 
@@ -181,13 +196,13 @@ export default function App() {
             <button
               className="card-link"
               onClick={() =>
-                update((p) => ({ ...p, projects: [...p.projects, { name: 'New project', sub: '', pct: 0 }] }))
+                update((p) => ({ ...p, projects: [...p.projects, { name: 'New project', sub: '', subtasks: [] }] }))
               }
             >
               + add
             </button>
           </div>
-          <ProgressList items={state.projects} onChange={(projects) => update((p) => ({ ...p, projects }))} />
+          <MilestoneList items={state.projects} onChange={(projects) => update((p) => ({ ...p, projects }))} />
         </div>
 
         <div className="card accent-violet span-4">
@@ -197,12 +212,14 @@ export default function App() {
             </div>
             <button
               className="card-link"
-              onClick={() => update((p) => ({ ...p, career: [...p.career, { name: 'New item', sub: '', pct: 0 }] }))}
+              onClick={() =>
+                update((p) => ({ ...p, career: [...p.career, { name: 'New item', sub: '', subtasks: [] }] }))
+              }
             >
               + add
             </button>
           </div>
-          <ProgressList items={state.career} onChange={(career) => update((p) => ({ ...p, career }))} barClass="violet" />
+          <MilestoneList items={state.career} onChange={(career) => update((p) => ({ ...p, career }))} barClass="violet" />
         </div>
 
         <div className="card accent-mint span-4">
@@ -220,15 +237,14 @@ export default function App() {
 
           <div style={{ marginTop: 16 }}>
             <div className="section-label">Debts</div>
-            <MoneyProgressList items={state.debts} onChange={(debts) => update((p) => ({ ...p, debts }))} mode="debt" />
+            <MoneyProgressList items={state.debts} onChange={(debts) => update((p) => ({ ...p, debts }))} />
           </div>
 
           <div style={{ marginTop: 18 }}>
             <div className="section-label">Savings</div>
-            <MoneyProgressList
+            <SavingsProgressList
               items={state.savings}
               onChange={(savings) => update((p) => ({ ...p, savings }))}
-              mode="savings"
               barClass="violet"
             />
           </div>
@@ -239,11 +255,8 @@ export default function App() {
             <div className="card-title">
               <span>🏋🏾</span> Fitness Check-in
             </div>
-            <div className="card-link">
-              {fitnessDone}/{state.fitness.length} this week
-            </div>
           </div>
-          <FitnessWeek days={state.fitness} onChange={(fitness) => update((p) => ({ ...p, fitness }))} />
+          <FitnessWeek fitness={state.fitness} onChange={(fitness) => update((p) => ({ ...p, fitness }))} />
         </div>
 
         <div className="card accent-amber span-4">
@@ -251,11 +264,8 @@ export default function App() {
             <div className="card-title">
               <span>📚</span> Study Tracker
             </div>
-            <div className="card-link">
-              {studyDone}/{state.study.length}
-            </div>
           </div>
-          <TaskList tasks={state.study} onChange={(study) => update((p) => ({ ...p, study }))} allowAdd />
+          <StudyWeek study={state.study} onChange={(study) => update((p) => ({ ...p, study }))} />
         </div>
 
         <div className="card accent-mint span-6">

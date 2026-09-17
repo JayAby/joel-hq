@@ -1,36 +1,69 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore'
 import { db, ensureSignedIn, isFirebaseConfigured } from '../firebase'
-import { DEFAULT_STATE, DashboardState, MoneyItem, FitnessDay } from '../types'
+import {
+  DEFAULT_STATE,
+  DashboardState,
+  Task,
+  Focus,
+  MilestoneItem,
+  ProgressItem,
+  MoneyItem,
+  SavingsItem,
+  FitnessState,
+  StudyState,
+} from '../types'
 
 const DOC_REF_PATH = ['joelhq', 'state'] as const
 const LOCAL_KEY = 'joelhq-local-state'
 
+function isTaskArray(arr: unknown): arr is Task[] {
+  return Array.isArray(arr) && arr.every((x) => x && typeof x.t === 'string' && typeof x.done === 'boolean')
+}
+function isFocus(x: unknown): x is Focus {
+  return !!x && typeof x === 'object' && typeof (x as any).title === 'string' && Array.isArray((x as any).subtasks)
+}
+function isMilestoneItemArray(arr: unknown): arr is MilestoneItem[] {
+  return Array.isArray(arr) && arr.every((x) => x && typeof x.name === 'string' && Array.isArray(x.subtasks))
+}
+function isProgressItemArray(arr: unknown): arr is ProgressItem[] {
+  return Array.isArray(arr) && arr.every((x) => x && typeof x.name === 'string' && typeof x.pct === 'number')
+}
 function isMoneyItemArray(arr: unknown): arr is MoneyItem[] {
   return (
     Array.isArray(arr) &&
     arr.every((x) => x && typeof x.target === 'number' && typeof x.current === 'number')
   )
 }
-function isFitnessDayArray(arr: unknown): arr is FitnessDay[] {
+function isSavingsItemArray(arr: unknown): arr is SavingsItem[] {
   return (
     Array.isArray(arr) &&
-    arr.every((x) => x && typeof x.day === 'string' && typeof x.workout === 'string')
+    arr.every(
+      (x) =>
+        x && typeof x.target === 'number' && typeof x.saved === 'number' && typeof x.withdrawn === 'number',
+    )
   )
+}
+function isFitnessState(x: unknown): x is FitnessState {
+  return !!x && typeof x === 'object' && !Array.isArray(x) && Array.isArray((x as any).days)
+}
+function isStudyState(x: unknown): x is StudyState {
+  return !!x && typeof x === 'object' && !Array.isArray(x) && Array.isArray((x as any).days)
 }
 
 function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
   const merged = { ...DEFAULT_STATE, ...raw }
   return {
     ...merged,
-    tasks: Array.isArray(merged.tasks) ? merged.tasks : DEFAULT_STATE.tasks,
-    projects: Array.isArray(merged.projects) ? merged.projects : DEFAULT_STATE.projects,
-    career: Array.isArray(merged.career) ? merged.career : DEFAULT_STATE.career,
+    tasks: isTaskArray(merged.tasks) ? merged.tasks : DEFAULT_STATE.tasks,
+    focus: isFocus(merged.focus) ? merged.focus : DEFAULT_STATE.focus,
+    projects: isMilestoneItemArray(merged.projects) ? merged.projects : DEFAULT_STATE.projects,
+    career: isMilestoneItemArray(merged.career) ? merged.career : DEFAULT_STATE.career,
     debts: isMoneyItemArray(merged.debts) ? merged.debts : DEFAULT_STATE.debts,
-    savings: isMoneyItemArray(merged.savings) ? merged.savings : DEFAULT_STATE.savings,
-    fitness: isFitnessDayArray(merged.fitness) ? merged.fitness : DEFAULT_STATE.fitness,
-    study: Array.isArray(merged.study) ? merged.study : DEFAULT_STATE.study,
-    goals: Array.isArray(merged.goals) ? merged.goals : DEFAULT_STATE.goals,
+    savings: isSavingsItemArray(merged.savings) ? merged.savings : DEFAULT_STATE.savings,
+    fitness: isFitnessState(merged.fitness) ? merged.fitness : DEFAULT_STATE.fitness,
+    study: isStudyState(merged.study) ? merged.study : DEFAULT_STATE.study,
+    goals: isProgressItemArray(merged.goals) ? merged.goals : DEFAULT_STATE.goals,
     notes: Array.isArray(merged.notes) ? merged.notes : DEFAULT_STATE.notes,
     links: Array.isArray(merged.links) ? merged.links : DEFAULT_STATE.links,
   }

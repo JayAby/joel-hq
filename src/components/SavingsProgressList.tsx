@@ -1,19 +1,19 @@
 import { useState } from 'react'
-import { MoneyItem } from '../types'
+import { SavingsItem } from '../types'
 import Editable from './Editable'
 import ProgressBar from './ProgressBar'
 
 interface Props {
-  items: MoneyItem[]
-  onChange: (items: MoneyItem[]) => void
+  items: SavingsItem[]
+  onChange: (items: SavingsItem[]) => void
   barClass?: string
 }
 
-export default function MoneyProgressList({ items, onChange, barClass = '' }: Props) {
+export default function SavingsProgressList({ items, onChange, barClass = '' }: Props) {
   const [name, setName] = useState('')
   const [target, setTarget] = useState('')
 
-  function update(i: number, patch: Partial<MoneyItem>) {
+  function update(i: number, patch: Partial<SavingsItem>) {
     const next = items.slice()
     next[i] = { ...next[i], ...patch }
     onChange(next)
@@ -24,33 +24,33 @@ export default function MoneyProgressList({ items, onChange, barClass = '' }: Pr
   function add() {
     const t = Number(target)
     if (!name.trim() || !t || t <= 0) return
-    onChange([...items, { name: name.trim(), target: t, current: 0 }])
+    onChange([...items, { name: name.trim(), target: t, saved: 0, withdrawn: 0 }])
     setName('')
     setTarget('')
   }
 
-  const totalOwed = items.reduce((s, i) => s + i.target, 0)
-  const totalPaid = items.reduce((s, i) => s + i.current, 0)
-  const totalLeft = Math.max(0, totalOwed - totalPaid)
+  const totalSaved = items.reduce((s, i) => s + i.saved, 0)
+  const totalGoal = items.reduce((s, i) => s + i.target, 0)
+  const totalWithdrawn = items.reduce((s, i) => s + i.withdrawn, 0)
 
   return (
     <div>
       {items.length > 0 && (
         <div className="money-totals">
           <span>
-            £{totalOwed.toLocaleString()} <em>owed</em>
+            £{totalSaved.toLocaleString()} <em>saved</em>
           </span>
           <span>
-            £{totalPaid.toLocaleString()} <em>paid</em>
+            £{totalGoal.toLocaleString()} <em>goal</em>
           </span>
           <span>
-            £{totalLeft.toLocaleString()} <em>left</em>
+            £{totalWithdrawn.toLocaleString()} <em>withdrawn</em>
           </span>
         </div>
       )}
       {items.map((item, i) => {
-        const pct = item.target > 0 ? Math.min(100, Math.round((item.current / item.target) * 100)) : 0
-        const remaining = Math.max(0, item.target - item.current)
+        const pct = item.target > 0 ? Math.min(100, Math.round((item.saved / item.target) * 100)) : 0
+        const remaining = Math.max(0, item.target - item.saved)
         return (
           <div className="item" key={i}>
             <div className="item-top">
@@ -60,15 +60,15 @@ export default function MoneyProgressList({ items, onChange, barClass = '' }: Pr
               </button>
             </div>
             <div className="money-row">
-              <span className="money-label">paid</span>
+              <span className="money-label">saved</span>
               <input
                 type="number"
                 className="money-input"
-                value={item.current}
-                onChange={(e) => update(i, { current: Math.max(0, Number(e.target.value)) })}
+                value={item.saved}
+                onChange={(e) => update(i, { saved: Math.max(0, Number(e.target.value)) })}
               />
               <span className="money-slash">/</span>
-              <span className="money-label">owed</span>
+              <span className="money-label">goal</span>
               <input
                 type="number"
                 className="money-input"
@@ -76,8 +76,17 @@ export default function MoneyProgressList({ items, onChange, barClass = '' }: Pr
                 onChange={(e) => update(i, { target: Math.max(0, Number(e.target.value)) })}
               />
             </div>
+            <div className="money-row">
+              <span className="money-label">withdrawn</span>
+              <input
+                type="number"
+                className="money-input"
+                value={item.withdrawn}
+                onChange={(e) => update(i, { withdrawn: Math.max(0, Number(e.target.value)) })}
+              />
+            </div>
             <ProgressBar value={pct} barClass={barClass} readOnly />
-            <div className="money-remaining">£{remaining.toLocaleString()} left to pay</div>
+            <div className="money-remaining">£{remaining.toLocaleString()} to go</div>
           </div>
         )
       })}
@@ -86,7 +95,7 @@ export default function MoneyProgressList({ items, onChange, barClass = '' }: Pr
         <input
           type="number"
           value={target}
-          placeholder="amount owed"
+          placeholder="goal amount"
           onChange={(e) => setTarget(e.target.value)}
           style={{ flex: '0 0 110px' }}
         />

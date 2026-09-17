@@ -10,16 +10,47 @@ export interface ProgressItem {
   pct: number
 }
 
+export interface MilestoneItem {
+  name: string
+  sub?: string
+  subtasks: Task[]
+}
+
 export interface MoneyItem {
   name: string
   target: number
   current: number
 }
 
+export interface SavingsItem {
+  name: string
+  target: number
+  saved: number
+  withdrawn: number
+}
+
 export interface FitnessDay {
   day: string
   workout: string
   done: boolean
+}
+
+export interface FitnessState {
+  weight: string
+  lastWeekWeight: string
+  goalDaysPerWeek: number
+  days: FitnessDay[]
+}
+
+export interface StudyDay {
+  day: string
+  subject: string
+  done: boolean
+}
+
+export interface StudyState {
+  goalDaysPerWeek: number
+  days: StudyDay[]
 }
 
 export interface LinkItem {
@@ -30,7 +61,7 @@ export interface LinkItem {
 export interface Focus {
   title: string
   next: string
-  pct: number
+  subtasks: Task[]
 }
 
 export interface DashboardState {
@@ -38,14 +69,14 @@ export interface DashboardState {
   lastWeekReset: string
   tasks: Task[]
   focus: Focus
-  projects: ProgressItem[]
-  career: ProgressItem[]
+  projects: MilestoneItem[]
+  career: MilestoneItem[]
   balance: string
   balanceDelta: string
   debts: MoneyItem[]
-  savings: MoneyItem[]
-  fitness: FitnessDay[]
-  study: Task[]
+  savings: SavingsItem[]
+  fitness: FitnessState
+  study: StudyState
   goals: ProgressItem[]
   notes: string[]
   links: LinkItem[]
@@ -65,19 +96,31 @@ export const DEFAULT_STATE: DashboardState = {
   lastReset: new Date().toDateString(),
   lastWeekReset: mondayOf(new Date()),
   tasks: [],
-  focus: { title: 'What are you working on?', next: '', pct: 0 },
+  focus: { title: 'What are you working on?', next: '', subtasks: [] },
   projects: [],
   career: [],
   balance: '£0.00',
   balanceDelta: '',
   debts: [],
   savings: [],
-  fitness: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => ({
-    day,
-    workout: '',
-    done: false,
-  })),
-  study: [{ t: 'Study', done: false }],
+  fitness: {
+    weight: '',
+    lastWeekWeight: '',
+    goalDaysPerWeek: 4,
+    days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => ({
+      day,
+      workout: '',
+      done: false,
+    })),
+  },
+  study: {
+    goalDaysPerWeek: 4,
+    days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => ({
+      day,
+      subject: '',
+      done: false,
+    })),
+  },
   goals: [],
   notes: [],
   links: [
