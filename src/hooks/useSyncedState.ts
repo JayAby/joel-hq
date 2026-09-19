@@ -5,7 +5,6 @@ import {
   DEFAULT_STATE,
   DashboardState,
   Task,
-  Focus,
   MoneyItem,
   SavingsItem,
   FitnessState,
@@ -15,11 +14,22 @@ import {
 const DOC_REF_PATH = ['joelhq', 'state'] as const
 const LOCAL_KEY = 'joelhq-local-state'
 
-function isTaskArray(arr: unknown): arr is Task[] {
-  return Array.isArray(arr) && arr.every((x) => x && typeof x.t === 'string' && typeof x.done === 'boolean')
+function ensureTaskIds(arr: unknown): Task[] {
+  if (!Array.isArray(arr)) return []
+  return arr
+    .filter((x) => x && typeof x.t === 'string' && typeof x.done === 'boolean')
+    .map((x) => (typeof x.id === 'string' && x.id ? x : { ...x, id: crypto.randomUUID() }))
 }
-function isFocus(x: unknown): x is Focus {
-  return !!x && typeof x === 'object' && Array.isArray((x as any).subtasks)
+
+function isTaskArray(arr: unknown): arr is Task[] {
+  return (
+    Array.isArray(arr) &&
+    arr.every((x) => x && typeof x.id === 'string' && typeof x.t === 'string' && typeof x.done === 'boolean')
+  )
+}
+function isFocusMap(x: unknown): x is Record<string, Task[]> {
+  if (!x || typeof x !== 'object' || Array.isArray(x)) return false
+  return Object.values(x as Record<string, unknown>).every((v) => isTaskArray(v))
 }
 function isMoneyItemArray(arr: unknown): arr is MoneyItem[] {
   return (
@@ -45,17 +55,25 @@ function isStudyState(x: unknown): x is StudyState {
 
 function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
   const merged = { ...DEFAULT_STATE, ...raw }
+
+  const tasks = ensureTaskIds(merged.tasks)
+  const projects = ensureTaskIds(merged.projects)
+  const career = ensureTaskIds(merged.career)
+  const goals = ensureTaskIds(merged.goals)
+
   return {
     ...merged,
-    tasks: isTaskArray(merged.tasks) ? merged.tasks : DEFAULT_STATE.tasks,
-    focus: isFocus(merged.focus) ? merged.focus : DEFAULT_STATE.focus,
-    projects: isTaskArray(merged.projects) ? merged.projects : DEFAULT_STATE.projects,
-    career: isTaskArray(merged.career) ? merged.career : DEFAULT_STATE.career,
+    tasks: tasks.length || Array.isArray(merged.tasks) ? tasks : DEFAULT_STATE.tasks,
+    focusSubtasksByTask: isFocusMap(merged.focusSubtasksByTask)
+      ? merged.focusSubtasksByTask
+      : DEFAULT_STATE.focusSubtasksByTask,
+    projects: projects.length || Array.isArray(merged.projects) ? projects : DEFAULT_STATE.projects,
+    career: career.length || Array.isArray(merged.career) ? career : DEFAULT_STATE.career,
     debts: isMoneyItemArray(merged.debts) ? merged.debts : DEFAULT_STATE.debts,
     savings: isSavingsItemArray(merged.savings) ? merged.savings : DEFAULT_STATE.savings,
     fitness: isFitnessState(merged.fitness) ? merged.fitness : DEFAULT_STATE.fitness,
     study: isStudyState(merged.study) ? merged.study : DEFAULT_STATE.study,
-    goals: isTaskArray(merged.goals) ? merged.goals : DEFAULT_STATE.goals,
+    goals: goals.length || Array.isArray(merged.goals) ? goals : DEFAULT_STATE.goals,
     notes: Array.isArray(merged.notes) ? merged.notes : DEFAULT_STATE.notes,
     links: Array.isArray(merged.links) ? merged.links : DEFAULT_STATE.links,
   }

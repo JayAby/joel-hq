@@ -40,7 +40,7 @@ export default function TaskList({
   }
   function add() {
     if (!draftText.trim()) return
-    onChange([...tasks, { t: draftText.trim(), time: draftTime || undefined, done: false }])
+    onChange([...tasks, { id: crypto.randomUUID(), t: draftText.trim(), time: draftTime || undefined, done: false }])
     setDraftText('')
     setDraftTime('')
   }
@@ -48,7 +48,7 @@ export default function TaskList({
   return (
     <div>
       {tasks.map((task, i) => (
-        <div className={`task-row${task.done ? ' done' : ''}`} key={i}>
+        <div className={`task-row${task.done ? ' done' : ''}`} key={task.id}>
           <button className="check" onClick={() => toggle(i)}>
             ✓
           </button>

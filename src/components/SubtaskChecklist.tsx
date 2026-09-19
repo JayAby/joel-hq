@@ -25,14 +25,14 @@ export default function SubtaskChecklist({ items, onChange }: Props) {
   }
   function add() {
     if (!draft.trim()) return
-    onChange([...items, { t: draft.trim(), done: false }])
+    onChange([...items, { id: crypto.randomUUID(), t: draft.trim(), done: false }])
     setDraft('')
   }
 
   return (
     <div className="subtasks">
       {items.map((it, i) => (
-        <div className={`task-row sub${it.done ? ' done' : ''}`} key={i}>
+        <div className={`task-row sub${it.done ? ' done' : ''}`} key={it.id}>
           <button className="check" onClick={() => toggle(i)}>
             ✓
           </button>

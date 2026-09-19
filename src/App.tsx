@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSyncedState } from './hooks/useSyncedState'
 import { handleSpotifyRedirect } from './spotify'
 import { notificationPermission, requestNotificationPermission, notify } from './notifications'
-import { mondayOf, Task } from './types'
+import { mondayOf, Task, UNSCHEDULED_KEY } from './types'
 import Editable from './components/Editable'
 import ProgressBar from './components/ProgressBar'
 import SubtaskChecklist from './components/SubtaskChecklist'
@@ -15,6 +15,11 @@ import NowPlaying from './components/NowPlaying'
 import Pomodoro from './components/Pomodoro'
 import LinksList from './components/LinksList'
 import SwipeTabs from './components/SwipeTabs'
+import DevicesWidget from './components/DevicesWidget'
+import DevicesPage from './components/DevicesPage'
+import { useDevices } from './hooks/useDevices'
+import { useMyDevice } from './hooks/useMyDevice'
+import FocusLog from './components/FocusLog'
 
 function useClock() {
   const [now, setNow] = useState(new Date())
@@ -71,9 +76,13 @@ function timezoneLabel(now: Date) {
 
 export default function App() {
   const { state, update, ready, synced } = useSyncedState()
+  const { devices, addDevice, updateDevice, removeDevice } = useDevices()
+  const { myDeviceId, bind, unbind } = useMyDevice(devices, updateDevice)
+  const [view, setView] = useState<'dashboard' | 'devices'>('dashboard')
+  const [openDeviceId, setOpenDeviceId] = useState<string | null>(null)
   const now = useClock()
   const [notifPerm, setNotifPerm] = useState(notificationPermission())
-  const notifiedRef = useRef<Set<number>>(new Set())
+  const notifiedRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     handleSpotifyRedirect()
@@ -91,10 +100,10 @@ export default function App() {
   useEffect(() => {
     if (notifPerm !== 'granted') return
     const current = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-    state.tasks.forEach((t, i) => {
+    state.tasks.forEach((t) => {
       if (!t.time || t.done) return
-      if (t.time === current && !notifiedRef.current.has(i)) {
-        notifiedRef.current.add(i)
+      if (t.time === current && !notifiedRef.current.has(t.id)) {
+        notifiedRef.current.add(t.id)
         notify(`⏰ ${t.t}`, `Scheduled for ${t.time}`)
       }
     })
@@ -107,6 +116,7 @@ export default function App() {
         ...prev,
         lastReset: today,
         tasks: prev.tasks.map((t) => ({ ...t, done: false })),
+        focusSubtasksByTask: {},
       }))
     }
   }, [ready, now, state.lastReset, update])
@@ -130,11 +140,28 @@ export default function App() {
     }
   }, [ready, now, state.lastWeekReset, update])
 
-  const focusDone = state.focus.subtasks.filter((t) => t.done).length
-  const focusPct = state.focus.subtasks.length
-    ? Math.round((focusDone / state.focus.subtasks.length) * 100)
-    : 0
   const { current: currentTask, next: nextTask } = getCurrentAndNext(state.tasks, now)
+  const focusKey = currentTask?.id ?? UNSCHEDULED_KEY
+  const focusSubtasks = state.focusSubtasksByTask[focusKey] ?? []
+  const focusDone = focusSubtasks.filter((t) => t.done).length
+  const focusPct = focusSubtasks.length ? Math.round((focusDone / focusSubtasks.length) * 100) : 0
+
+  if (view === 'devices') {
+    return (
+      <DevicesPage
+        devices={devices}
+        now={now.getTime()}
+        myDeviceId={myDeviceId}
+        initialOpenId={openDeviceId}
+        onBack={() => setView('dashboard')}
+        onAddDevice={addDevice}
+        onUpdateDevice={updateDevice}
+        onRemoveDevice={removeDevice}
+        onBind={bind}
+        onUnbind={unbind}
+      />
+    )
+  }
 
   return (
     <div className="page">
@@ -208,8 +235,34 @@ export default function App() {
           </div>
           <ProgressBar value={focusPct} barClass="amber" readOnly />
           <SubtaskChecklist
-            items={state.focus.subtasks}
-            onChange={(subtasks) => update((p) => ({ ...p, focus: { ...p.focus, subtasks } }))}
+            key={focusKey}
+            items={focusSubtasks}
+            onChange={(subtasks) =>
+              update((p) => ({
+                ...p,
+                focusSubtasksByTask: { ...p.focusSubtasksByTask, [focusKey]: subtasks },
+              }))
+            }
+          />
+        </div>
+
+        {/* FOCUS LOG: every scheduled task today, each with its own checklist you can revisit */}
+        <div className="card accent-amber span-12">
+          <div className="card-head">
+            <div className="card-title">
+              <span>🗂️</span> Today's Focus Log
+            </div>
+          </div>
+          <FocusLog
+            tasks={state.tasks}
+            subtasksByTask={state.focusSubtasksByTask}
+            currentTaskId={currentTask?.id ?? null}
+            onChangeSubtasks={(taskId, subtasks) =>
+              update((p) => ({
+                ...p,
+                focusSubtasksByTask: { ...p.focusSubtasksByTask, [taskId]: subtasks },
+              }))
+            }
           />
         </div>
 
@@ -355,6 +408,19 @@ export default function App() {
           </div>
           <LinksList links={state.links} onChange={(links) => update((p) => ({ ...p, links }))} />
         </div>
+
+        <DevicesWidget
+          devices={devices}
+          now={now.getTime()}
+          onOpenDevice={(id) => {
+            setOpenDeviceId(id)
+            setView('devices')
+          }}
+          onViewAll={() => {
+            setOpenDeviceId(null)
+            setView('devices')
+          }}
+        />
       </div>
 
       <div className="footer">

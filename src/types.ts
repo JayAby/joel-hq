@@ -1,4 +1,5 @@
 export interface Task {
+  id: string
   t: string
   time?: string
   done: boolean
@@ -46,15 +47,45 @@ export interface LinkItem {
   url: string
 }
 
-export interface Focus {
-  subtasks: Task[]
+export type DeviceType = 'laptop' | 'desktop' | 'phone' | 'tablet' | 'tv' | 'other'
+export type PresenceStatus = 'active' | 'idle' | 'away' | 'offline'
+export type ManualStatus = 'online' | 'offline' | 'connected'
+
+export interface DeviceConnection {
+  toDeviceId: string
+  label: string
 }
+
+export interface DeviceDoc {
+  id: string
+  name: string
+  type: DeviceType
+  capability: 'live' | 'manual'
+  createdAt: number
+
+  lastSeen?: number
+  activity?: string
+  currentApp?: string
+  currentProject?: string
+  battery?: number
+
+  manualStatus?: ManualStatus
+
+  connections?: DeviceConnection[]
+}
+
+// Key used in focusSubtasksByTask for when nothing is currently scheduled.
+export const UNSCHEDULED_KEY = 'unscheduled'
 
 export interface DashboardState {
   lastReset: string
   lastWeekReset: string
   tasks: Task[]
-  focus: Focus
+  // Current Focus's checklist is scoped PER task (keyed by task id), so
+  // switching which task is "current" always starts with a clean checklist,
+  // while an earlier task's checked-off progress is still there if you look
+  // back at it later the same day. Cleared entirely on the daily reset.
+  focusSubtasksByTask: Record<string, Task[]>
   projects: Task[]
   career: Task[]
   balance: string
@@ -78,30 +109,30 @@ export function mondayOf(d: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
+function newTask(t: string, time?: string): Task {
+  return { id: crypto.randomUUID(), t, time, done: false }
+}
+
+const seedTasks = [
+  newTask('Code for 2 hours', '09:00'),
+  newTask('Deep work session', '11:00'),
+  newTask('Gym', '17:00'),
+  newTask('Wind down / plan tomorrow', '20:30'),
+]
+
 export const DEFAULT_STATE: DashboardState = {
   lastReset: new Date().toDateString(),
   lastWeekReset: mondayOf(new Date()),
-  tasks: [
-    { t: 'Code for 2 hours', time: '09:00', done: false },
-    { t: 'Deep work session', time: '11:00', done: false },
-    { t: 'Gym', time: '17:00', done: false },
-    { t: 'Wind down / plan tomorrow', time: '20:30', done: false },
-  ],
-  focus: {
-    subtasks: [
-      { t: 'Set up the project structure', done: false },
-      { t: 'Build the core feature', done: false },
-      { t: 'Test it end to end', done: false },
+  tasks: seedTasks,
+  focusSubtasksByTask: {
+    [seedTasks[0].id]: [
+      newTask('Set up the project structure'),
+      newTask('Build the core feature'),
+      newTask('Test it end to end'),
     ],
   },
-  projects: [
-    { t: 'Example project — rename or delete me', done: false },
-    { t: 'Portfolio site', done: false },
-  ],
-  career: [
-    { t: 'Update CV & LinkedIn', done: false },
-    { t: 'Apply to 1 role this week', done: false },
-  ],
+  projects: [newTask('Example project — rename or delete me'), newTask('Portfolio site')],
+  career: [newTask('Update CV & LinkedIn'), newTask('Apply to 1 role this week')],
   balance: '£1,234.56',
   balanceDelta: '↑ +£120 this month',
   debts: [{ name: 'Example debt — rename me', target: 1000, current: 250 }],
@@ -132,10 +163,7 @@ export const DEFAULT_STATE: DashboardState = {
       { day: 'Sun', subject: 'Review week', done: false },
     ],
   },
-  goals: [
-    { t: 'Example goal — rename or delete me', done: false },
-    { t: 'Debt free by December', done: false },
-  ],
+  goals: [newTask('Example goal — rename or delete me'), newTask('Debt free by December')],
   notes: ['Example note — click to edit, ✕ to delete'],
   links: [
     { name: 'VS Code', url: 'vscode://file/' },
