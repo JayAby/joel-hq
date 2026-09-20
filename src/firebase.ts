@@ -1,6 +1,12 @@
 import { initializeApp, FirebaseApp } from 'firebase/app'
 import { getFirestore, Firestore } from 'firebase/firestore'
-import { getAuth, signInAnonymously, onAuthStateChanged, Auth } from 'firebase/auth'
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  Auth,
+} from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,10 +17,6 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
-// Until you've added real values to .env.local, these stay undefined.
-// Rather than crashing with an "invalid API key" error, we skip Firebase
-// entirely and the dashboard runs in local-only mode — usable, just not
-// synced across devices yet.
 export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId)
 
 let app: FirebaseApp | null = null
@@ -29,13 +31,22 @@ if (isFirebaseConfigured) {
 
 export { db, auth }
 
+export async function login(email: string, password: string) {
+  if (!auth) throw new Error('Firebase is not configured')
+  await signInWithEmailAndPassword(auth, email, password)
+}
+
+export async function logout() {
+  if (!auth) return
+  await signOut(auth)
+}
+
 export function ensureSignedIn(cb: () => void) {
   if (!auth) return
-  onAuthStateChanged(auth, (user) => {
+  const unsub = onAuthStateChanged(auth, (user) => {
     if (user) {
       cb()
-    } else {
-      signInAnonymously(auth!).catch((err) => console.error('Auth error', err))
+      unsub()
     }
   })
 }
