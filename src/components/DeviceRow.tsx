@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function DeviceRow({ device, now, onClick }: Props) {
-  const meta = DEVICE_TYPE_META[device.type]
+  const meta = DEVICE_TYPE_META[device.type] ?? DEVICE_TYPE_META.other
 
   let dot: string
   let secondary: string
