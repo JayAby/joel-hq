@@ -17,9 +17,12 @@ import LinksList from './components/LinksList'
 import SwipeTabs from './components/SwipeTabs'
 import DevicesWidget from './components/DevicesWidget'
 import DevicesPage from './components/DevicesPage'
+import FocusLog from './components/FocusLog'
 import { useDevices } from './hooks/useDevices'
 import { useMyDevice } from './hooks/useMyDevice'
-import FocusLog from './components/FocusLog'
+import { useHistory } from './hooks/useHistory'
+import StreaksWidget from './components/StreaksWidget'
+import { HistoryEntry } from './types'
 
 function useClock() {
   const [now, setNow] = useState(new Date())
@@ -43,6 +46,8 @@ function toMinutes(hhmm: string): number {
   return h * 60 + (m || 0)
 }
 
+// Figures out which of today's scheduled tasks is "now" and which is next,
+// so Current Focus can update itself automatically through the day.
 function getCurrentAndNext(tasks: Task[], now: Date) {
   const timed = tasks
     .filter((t) => t.time)
@@ -78,6 +83,7 @@ export default function App() {
   const { state, update, ready, synced } = useSyncedState()
   const { devices, addDevice, updateDevice, removeDevice } = useDevices()
   const { myDeviceId, bind, unbind } = useMyDevice(devices, updateDevice)
+  const { entries: historyEntries, recordDay } = useHistory()
   const [view, setView] = useState<'dashboard' | 'devices'>('dashboard')
   const [openDeviceId, setOpenDeviceId] = useState<string | null>(null)
   const now = useClock()
@@ -109,9 +115,28 @@ export default function App() {
     })
   }, [now, state.tasks, notifPerm])
 
+  // Daily reset: today's tasks, and a completely clean slate for Focus's
+  // per-task checklists. Before wiping anything, snapshot the day that's
+  // ending into history so streaks/trends have something to work with.
   useEffect(() => {
     const today = now.toDateString()
     if (ready && state.lastReset !== today) {
+      const endingDate = new Date(state.lastReset)
+      const dateKey = endingDate.toISOString().slice(0, 10)
+      const weekdayAbbrev = endingDate.toLocaleDateString('en-GB', { weekday: 'short' })
+      const fitnessDay = state.fitness.days.find((d) => d.day === weekdayAbbrev)
+      const studyDay = state.study.days.find((d) => d.day === weekdayAbbrev)
+
+      const entry: HistoryEntry = {
+        date: dateKey,
+        tasksCompleted: state.tasks.filter((t) => t.done).length,
+        tasksTotal: state.tasks.length,
+        workoutDone: fitnessDay?.done ?? false,
+        studyDone: studyDay?.done ?? false,
+      }
+      if (state.fitness.weight) entry.weight = state.fitness.weight
+      recordDay(entry)
+
       update((prev) => ({
         ...prev,
         lastReset: today,
@@ -119,8 +144,9 @@ export default function App() {
         focusSubtasksByTask: {},
       }))
     }
-  }, [ready, now, state.lastReset, update])
+  }, [ready, now, state.lastReset, state.tasks, state.fitness, state.study, update, recordDay])
 
+  // Weekly reset: fitness + study check-ins clear, weight gets snapshotted for the delta comparison.
   useEffect(() => {
     const thisMonday = mondayOf(now)
     if (ready && state.lastWeekReset !== thisMonday) {
@@ -202,6 +228,7 @@ export default function App() {
       </div>
 
       <div className="grid">
+        {/* TODAY / SCHEDULE */}
         <div className="card accent-mint span-6">
           <div className="card-head">
             <div className="card-title">
@@ -223,6 +250,7 @@ export default function App() {
           />
         </div>
 
+        {/* CURRENT FOCUS: auto-derived from today's schedule + time; subtasks scoped per task */}
         <div className="card accent-amber span-6">
           <div className="card-head">
             <div className="card-title">
@@ -266,6 +294,7 @@ export default function App() {
           />
         </div>
 
+        {/* PROJECTS: simple checkbox list */}
         <div className="card accent-mint span-4">
           <div className="card-head">
             <div className="card-title">
@@ -275,6 +304,7 @@ export default function App() {
           <TaskList tasks={state.projects} onChange={(projects) => update((p) => ({ ...p, projects }))} allowAdd />
         </div>
 
+        {/* CAREER: simple checkbox list */}
         <div className="card accent-violet span-4">
           <div className="card-head">
             <div className="card-title">
@@ -284,6 +314,7 @@ export default function App() {
           <TaskList tasks={state.career} onChange={(career) => update((p) => ({ ...p, career }))} allowAdd />
         </div>
 
+        {/* FINANCE: swipeable Debts / Savings tabs */}
         <div className="card accent-mint span-4">
           <div className="card-head">
             <div className="card-title">
@@ -320,6 +351,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* FITNESS: swipeable Weight / Workouts tabs */}
         <div className="card accent-rose span-6">
           <div className="card-head">
             <div className="card-title">
@@ -347,6 +379,7 @@ export default function App() {
           />
         </div>
 
+        {/* STUDY TRACKER */}
         <div className="card accent-amber span-6">
           <div className="card-head">
             <div className="card-title">
@@ -356,6 +389,7 @@ export default function App() {
           <StudyWeek study={state.study} onChange={(study) => update((p) => ({ ...p, study }))} />
         </div>
 
+        {/* GOALS: simple checkbox list */}
         <div className="card accent-mint span-6">
           <div className="card-head">
             <div className="card-title">
@@ -365,6 +399,7 @@ export default function App() {
           <TaskList tasks={state.goals} onChange={(goals) => update((p) => ({ ...p, goals }))} allowAdd />
         </div>
 
+        {/* QUICK NOTES */}
         <div className="card accent-violet span-6">
           <div className="card-head">
             <div className="card-title">
@@ -399,7 +434,9 @@ export default function App() {
 
         <NowPlaying />
         <Pomodoro />
+        <StreaksWidget entries={historyEntries} />
 
+        {/* LINKS */}
         <div className="card accent-violet span-4">
           <div className="card-head">
             <div className="card-title">

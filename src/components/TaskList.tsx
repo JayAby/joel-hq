@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Task } from '../types'
 import Editable from './Editable'
+import { parseTaskInput } from '../quickAdd'
 
 interface Props {
   tasks: Task[]
@@ -40,8 +41,19 @@ export default function TaskList({
   }
   function add() {
     if (!draftText.trim()) return
-    const task: Task = { id: crypto.randomUUID(), t: draftText.trim(), done: false }
-    if (draftTime) task.time = draftTime
+    let text = draftText.trim()
+    let time = draftTime || undefined
+
+    if (!time && allowTimeInput) {
+      const parsed = parseTaskInput(text)
+      if (parsed.time) {
+        text = parsed.text
+        time = parsed.time
+      }
+    }
+
+    const task: Task = { id: crypto.randomUUID(), t: text, done: false }
+    if (time) task.time = time
     onChange([...tasks, task])
     setDraftText('')
     setDraftTime('')
@@ -72,7 +84,7 @@ export default function TaskList({
         <div className="add-row">
           <input
             value={draftText}
-            placeholder="add a task..."
+            placeholder={allowTimeInput ? "add a task... (try 'gym 5pm')" : 'add a task...'}
             onChange={(e) => setDraftText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && add()}
           />

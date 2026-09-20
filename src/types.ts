@@ -77,6 +77,15 @@ export interface DeviceDoc {
 // Key used in focusSubtasksByTask for when nothing is currently scheduled.
 export const UNSCHEDULED_KEY = 'unscheduled'
 
+export interface HistoryEntry {
+  date: string
+  tasksCompleted: number
+  tasksTotal: number
+  workoutDone: boolean
+  studyDone: boolean
+  weight?: string
+}
+
 export interface DashboardState {
   lastReset: string
   lastWeekReset: string
