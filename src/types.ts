@@ -110,7 +110,9 @@ export function mondayOf(d: Date): string {
 }
 
 function newTask(t: string, time?: string): Task {
-  return { id: crypto.randomUUID(), t, time, done: false }
+  const task: Task = { id: crypto.randomUUID(), t, done: false }
+  if (time) task.time = time
+  return task
 }
 
 const seedTasks = [

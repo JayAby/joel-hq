@@ -34,9 +34,10 @@ export function useDevices() {
         name: input.name,
         type: input.type,
         capability: input.capability,
-        manualStatus: input.capability === 'manual' ? 'offline' : undefined,
         createdAt: Date.now(),
       }
+      if (input.capability === 'manual') newDevice.manualStatus = 'offline'
+
       if (isFirebaseConfigured && db) {
         await setDoc(doc(db, COLLECTION, id), newDevice)
       } else {

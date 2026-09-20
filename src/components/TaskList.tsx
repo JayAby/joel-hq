@@ -40,7 +40,9 @@ export default function TaskList({
   }
   function add() {
     if (!draftText.trim()) return
-    onChange([...tasks, { id: crypto.randomUUID(), t: draftText.trim(), time: draftTime || undefined, done: false }])
+    const task: Task = { id: crypto.randomUUID(), t: draftText.trim(), done: false }
+    if (draftTime) task.time = draftTime
+    onChange([...tasks, task])
     setDraftText('')
     setDraftTime('')
   }
