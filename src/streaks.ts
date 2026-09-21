@@ -48,3 +48,22 @@ export function lastNDaysDots(entries: HistoryEntry[], n: number): DayDot[] {
   }
   return dots
 }
+
+export function weeklySummary(entries: HistoryEntry[]): string | null {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - 7)
+  const cutoffKey = cutoff.toISOString().slice(0, 10)
+  const week = entries.filter((e) => e.date >= cutoffKey)
+
+  if (week.length === 0) return null
+
+  const workouts = week.filter((e) => e.workoutDone).length
+  const studySessions = week.filter((e) => e.studyDone).length
+  const tasksCompleted = week.reduce((s, e) => s + e.tasksCompleted, 0)
+  const tasksTotal = week.reduce((s, e) => s + e.tasksTotal, 0)
+  const pct = tasksTotal > 0 ? Math.round((tasksCompleted / tasksTotal) * 100) : null
+
+  const parts = [`${workouts}/${week.length} workouts`, `${studySessions}/${week.length} study days`]
+  if (pct !== null) parts.push(`${tasksCompleted}/${tasksTotal} tasks (${pct}%)`)
+  return `This week: ${parts.join(' · ')}`
+}

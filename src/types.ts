@@ -1,3 +1,5 @@
+import { resetDayKey } from './config'
+
 export interface Task {
   id: string
   t: string
@@ -74,7 +76,6 @@ export interface DeviceDoc {
   connections?: DeviceConnection[]
 }
 
-// Key used in focusSubtasksByTask for when nothing is currently scheduled.
 export const UNSCHEDULED_KEY = 'unscheduled'
 
 export interface HistoryEntry {
@@ -87,13 +88,10 @@ export interface HistoryEntry {
 }
 
 export interface DashboardState {
+  hasOnboarded: boolean
   lastReset: string
   lastWeekReset: string
   tasks: Task[]
-  // Current Focus's checklist is scoped PER task (keyed by task id), so
-  // switching which task is "current" always starts with a clean checklist,
-  // while an earlier task's checked-off progress is still there if you look
-  // back at it later the same day. Cleared entirely on the daily reset.
   focusSubtasksByTask: Record<string, Task[]>
   projects: Task[]
   career: Task[]
@@ -132,7 +130,8 @@ const seedTasks = [
 ]
 
 export const DEFAULT_STATE: DashboardState = {
-  lastReset: new Date().toDateString(),
+  hasOnboarded: false,
+  lastReset: resetDayKey(new Date()),
   lastWeekReset: mondayOf(new Date()),
   tasks: seedTasks,
   focusSubtasksByTask: {

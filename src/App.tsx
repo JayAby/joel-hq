@@ -3,6 +3,10 @@ import { useSyncedState } from './hooks/useSyncedState'
 import { handleSpotifyRedirect } from './spotify'
 import { notificationPermission, requestNotificationPermission, notify } from './notifications'
 import { mondayOf, Task, UNSCHEDULED_KEY } from './types'
+import { resetDayKey } from './config'
+import { confirmDelete } from './confirm'
+import { exportData } from './exportData'
+import WelcomeBanner from './components/WelcomeBanner'
 import Editable from './components/Editable'
 import ProgressBar from './components/ProgressBar'
 import SubtaskChecklist from './components/SubtaskChecklist'
@@ -46,8 +50,6 @@ function toMinutes(hhmm: string): number {
   return h * 60 + (m || 0)
 }
 
-// Figures out which of today's scheduled tasks is "now" and which is next,
-// so Current Focus can update itself automatically through the day.
 function getCurrentAndNext(tasks: Task[], now: Date) {
   const timed = tasks
     .filter((t) => t.time)
@@ -86,9 +88,11 @@ export default function App() {
   const { entries: historyEntries, recordDay } = useHistory()
   const [view, setView] = useState<'dashboard' | 'devices'>('dashboard')
   const [openDeviceId, setOpenDeviceId] = useState<string | null>(null)
+  const [focusLogOpen, setFocusLogOpen] = useState(false)
   const now = useClock()
   const [notifPerm, setNotifPerm] = useState(notificationPermission())
   const notifiedRef = useRef<Set<string>>(new Set())
+  const knownDeviceIdsRef = useRef<Set<string> | null>(null)
 
   useEffect(() => {
     handleSpotifyRedirect()
@@ -104,6 +108,20 @@ export default function App() {
   }, [state.lastReset])
 
   useEffect(() => {
+    const currentIds = new Set(devices.map((d) => d.id))
+    if (knownDeviceIdsRef.current === null) {
+      knownDeviceIdsRef.current = currentIds
+      return
+    }
+    for (const d of devices) {
+      if (!knownDeviceIdsRef.current.has(d.id)) {
+        notify('🖥️ New device added', `"${d.name}" was just added to your Device Hub.`)
+      }
+    }
+    knownDeviceIdsRef.current = currentIds
+  }, [devices])
+
+  useEffect(() => {
     if (notifPerm !== 'granted') return
     const current = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
     state.tasks.forEach((t) => {
@@ -115,11 +133,8 @@ export default function App() {
     })
   }, [now, state.tasks, notifPerm])
 
-  // Daily reset: today's tasks, and a completely clean slate for Focus's
-  // per-task checklists. Before wiping anything, snapshot the day that's
-  // ending into history so streaks/trends have something to work with.
   useEffect(() => {
-    const today = now.toDateString()
+    const today = resetDayKey(now)
     if (ready && state.lastReset !== today) {
       const endingDate = new Date(state.lastReset)
       const dateKey = endingDate.toISOString().slice(0, 10)
@@ -146,7 +161,6 @@ export default function App() {
     }
   }, [ready, now, state.lastReset, state.tasks, state.fitness, state.study, update, recordDay])
 
-  // Weekly reset: fitness + study check-ins clear, weight gets snapshotted for the delta comparison.
   useEffect(() => {
     const thisMonday = mondayOf(now)
     if (ready && state.lastWeekReset !== thisMonday) {
@@ -213,6 +227,13 @@ export default function App() {
               🔔 enable notifications
             </button>
           )}
+          <button
+            className="card-link"
+            style={{ marginTop: 6 }}
+            onClick={() => exportData(state, devices, historyEntries)}
+          >
+            ⬇ export my data
+          </button>
         </div>
         <div className="clockbox">
           <div className="clock">
@@ -227,8 +248,11 @@ export default function App() {
         </div>
       </div>
 
+      {!state.hasOnboarded && (
+        <WelcomeBanner onDismiss={() => update((p) => ({ ...p, hasOnboarded: true }))} />
+      )}
+
       <div className="grid">
-        {/* TODAY / SCHEDULE */}
         <div className="card accent-mint span-6">
           <div className="card-head">
             <div className="card-title">
@@ -250,7 +274,6 @@ export default function App() {
           />
         </div>
 
-        {/* CURRENT FOCUS: auto-derived from today's schedule + time; subtasks scoped per task */}
         <div className="card accent-amber span-6">
           <div className="card-head">
             <div className="card-title">
@@ -274,27 +297,34 @@ export default function App() {
           />
         </div>
 
-        {/* FOCUS LOG: every scheduled task today, each with its own checklist you can revisit */}
         <div className="card accent-amber span-12">
           <div className="card-head">
             <div className="card-title">
               <span>🗂️</span> Today's Focus Log
             </div>
+            <button
+              className="burger-btn"
+              onClick={() => setFocusLogOpen((o) => !o)}
+              aria-label={focusLogOpen ? 'Collapse focus log' : 'Expand focus log'}
+            >
+              {focusLogOpen ? '▾' : '☰'}
+            </button>
           </div>
-          <FocusLog
-            tasks={state.tasks}
-            subtasksByTask={state.focusSubtasksByTask}
-            currentTaskId={currentTask?.id ?? null}
-            onChangeSubtasks={(taskId, subtasks) =>
-              update((p) => ({
-                ...p,
-                focusSubtasksByTask: { ...p.focusSubtasksByTask, [taskId]: subtasks },
-              }))
-            }
-          />
+          {focusLogOpen && (
+            <FocusLog
+              tasks={state.tasks}
+              subtasksByTask={state.focusSubtasksByTask}
+              currentTaskId={currentTask?.id ?? null}
+              onChangeSubtasks={(taskId, subtasks) =>
+                update((p) => ({
+                  ...p,
+                  focusSubtasksByTask: { ...p.focusSubtasksByTask, [taskId]: subtasks },
+                }))
+              }
+            />
+          )}
         </div>
 
-        {/* PROJECTS: simple checkbox list */}
         <div className="card accent-mint span-4">
           <div className="card-head">
             <div className="card-title">
@@ -304,7 +334,6 @@ export default function App() {
           <TaskList tasks={state.projects} onChange={(projects) => update((p) => ({ ...p, projects }))} allowAdd />
         </div>
 
-        {/* CAREER: simple checkbox list */}
         <div className="card accent-violet span-4">
           <div className="card-head">
             <div className="card-title">
@@ -314,7 +343,6 @@ export default function App() {
           <TaskList tasks={state.career} onChange={(career) => update((p) => ({ ...p, career }))} allowAdd />
         </div>
 
-        {/* FINANCE: swipeable Debts / Savings tabs */}
         <div className="card accent-mint span-4">
           <div className="card-head">
             <div className="card-title">
@@ -351,7 +379,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* FITNESS: swipeable Weight / Workouts tabs */}
         <div className="card accent-rose span-6">
           <div className="card-head">
             <div className="card-title">
@@ -379,7 +406,6 @@ export default function App() {
           />
         </div>
 
-        {/* STUDY TRACKER */}
         <div className="card accent-amber span-6">
           <div className="card-head">
             <div className="card-title">
@@ -389,7 +415,6 @@ export default function App() {
           <StudyWeek study={state.study} onChange={(study) => update((p) => ({ ...p, study }))} />
         </div>
 
-        {/* GOALS: simple checkbox list */}
         <div className="card accent-mint span-6">
           <div className="card-head">
             <div className="card-title">
@@ -399,7 +424,6 @@ export default function App() {
           <TaskList tasks={state.goals} onChange={(goals) => update((p) => ({ ...p, goals }))} allowAdd />
         </div>
 
-        {/* QUICK NOTES */}
         <div className="card accent-violet span-6">
           <div className="card-head">
             <div className="card-title">
@@ -424,7 +448,10 @@ export default function App() {
               <button
                 className="del-btn"
                 style={{ opacity: 0.5 }}
-                onClick={() => update((p) => ({ ...p, notes: p.notes.filter((_, idx) => idx !== i) }))}
+                onClick={() =>
+                  confirmDelete(`"${n}"`) &&
+                  update((p) => ({ ...p, notes: p.notes.filter((_, idx) => idx !== i) }))
+                }
               >
                 ✕
               </button>
@@ -436,7 +463,6 @@ export default function App() {
         <Pomodoro />
         <StreaksWidget entries={historyEntries} />
 
-        {/* LINKS */}
         <div className="card accent-violet span-4">
           <div className="card-head">
             <div className="card-title">

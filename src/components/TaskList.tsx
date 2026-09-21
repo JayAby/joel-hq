@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Task } from '../types'
 import Editable from './Editable'
 import { parseTaskInput } from '../quickAdd'
+import { confirmDelete } from '../confirm'
 
 interface Props {
   tasks: Task[]
@@ -37,6 +38,7 @@ export default function TaskList({
     onChange(next)
   }
   function remove(i: number) {
+    if (!confirmDelete(`"${tasks[i].t}"`)) return
     onChange(tasks.filter((_, idx) => idx !== i))
   }
   function add() {
@@ -62,7 +64,7 @@ export default function TaskList({
   return (
     <div>
       {tasks.map((task, i) => (
-        <div className={`task-row${task.done ? ' done' : ''}`} key={task.id}>
+        <div className={`task-row${task.done ? ' done' : ''}`} key={i}>
           <button className="check" onClick={() => toggle(i)}>
             ✓
           </button>

@@ -1,5 +1,5 @@
 import { HistoryEntry } from '../types'
-import { workoutStreak, studyStreak, lastNDaysDots } from '../streaks'
+import { workoutStreak, studyStreak, lastNDaysDots, weeklySummary } from '../streaks'
 
 interface Props {
   entries: HistoryEntry[]
@@ -16,6 +16,7 @@ export default function StreaksWidget({ entries }: Props) {
   const wStreak = workoutStreak(entries)
   const sStreak = studyStreak(entries)
   const dots = lastNDaysDots(entries, 7)
+  const summary = weeklySummary(entries)
 
   return (
     <div className="card accent-rose span-4">
@@ -47,6 +48,7 @@ export default function StreaksWidget({ entries }: Props) {
           Streaks build up from tomorrow's daily reset onward — there's no history to show yet.
         </div>
       )}
+      {summary && <div className="streak-summary">{summary}</div>}
     </div>
   )
 }

@@ -75,6 +75,7 @@ function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
     study: isStudyState(merged.study) ? merged.study : DEFAULT_STATE.study,
     goals: goals.length || Array.isArray(merged.goals) ? goals : DEFAULT_STATE.goals,
     notes: Array.isArray(merged.notes) ? merged.notes : DEFAULT_STATE.notes,
+    hasOnboarded: typeof merged.hasOnboarded === 'boolean' ? merged.hasOnboarded : DEFAULT_STATE.hasOnboarded,
     links: Array.isArray(merged.links) ? merged.links : DEFAULT_STATE.links,
   }
 }
