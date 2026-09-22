@@ -1,8 +1,12 @@
-import { HistoryEntry } from '../types'
-import { workoutStreak, studyStreak, lastNDaysDots, weeklySummary } from '../streaks'
+import { HistoryEntry, RecurringPlan } from '../types'
+import { lastNDaysDots, weeklySummary } from '../streaks'
+import { habitStreakDays } from '../plans'
 
 interface Props {
   entries: HistoryEntry[]
+  habits: RecurringPlan[]
+  habitLog: Record<string, string[]>
+  now: Date
 }
 
 const DOT_STYLE: Record<string, string> = {
@@ -12,9 +16,7 @@ const DOT_STYLE: Record<string, string> = {
   'no-data': 'var(--line)',
 }
 
-export default function StreaksWidget({ entries }: Props) {
-  const wStreak = workoutStreak(entries)
-  const sStreak = studyStreak(entries)
+export default function StreaksWidget({ entries, habits, habitLog, now }: Props) {
   const dots = lastNDaysDots(entries, 7)
   const summary = weeklySummary(entries)
 
@@ -26,16 +28,20 @@ export default function StreaksWidget({ entries }: Props) {
         </div>
       </div>
 
-      <div className="streak-row">
-        <span className="streak-icon">🏋🏾</span>
-        <span className="streak-label">Workout streak</span>
-        <span className="streak-value">{wStreak > 0 ? `🔥 ${wStreak}d` : '—'}</span>
-      </div>
-      <div className="streak-row">
-        <span className="streak-icon">📚</span>
-        <span className="streak-label">Study streak</span>
-        <span className="streak-value">{sStreak > 0 ? `🔥 ${sStreak}d` : '—'}</span>
-      </div>
+      {habits.length === 0 ? (
+        <div className="np-status">Add a habit to start building a streak.</div>
+      ) : (
+        habits.map((h) => {
+          const streak = habitStreakDays(h.id, habitLog, now)
+          return (
+            <div className="streak-row" key={h.id}>
+              <span className="streak-icon">🔁</span>
+              <span className="streak-label">{h.name}</span>
+              <span className="streak-value">{streak > 0 ? `🔥 ${streak}d` : '—'}</span>
+            </div>
+          )
+        })
+      )}
 
       <div className="streak-dots-label">Last 7 days · tasks completed</div>
       <div className="streak-dots">

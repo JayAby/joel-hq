@@ -24,7 +24,12 @@ export default function TaskList({
 
   function toggle(i: number) {
     const next = tasks.slice()
-    next[i] = { ...next[i], done: !next[i].done }
+    next[i] = { ...next[i], done: !next[i].done, skipped: false }
+    onChange(next)
+  }
+  function toggleSkip(i: number) {
+    const next = tasks.slice()
+    next[i] = { ...next[i], skipped: !next[i].skipped, done: false }
     onChange(next)
   }
   function editText(i: number, val: string) {
@@ -64,11 +69,24 @@ export default function TaskList({
   return (
     <div>
       {tasks.map((task, i) => (
-        <div className={`task-row${task.done ? ' done' : ''}`} key={i}>
+        <div
+          className={`task-row${task.done ? ' done' : ''}${task.skipped ? ' skipped' : ''}`}
+          key={task.id}
+        >
           <button className="check" onClick={() => toggle(i)}>
             ✓
           </button>
           <Editable className="task-text" value={task.t} onChange={(v) => editText(i, v)} />
+          {task.planId && (
+            <span className="plan-badge" title="Auto-generated from a recurring plan">
+              🔁
+            </span>
+          )}
+          {task.planId && !task.done && (
+            <button className="skip-link" onClick={() => toggleSkip(i)}>
+              {task.skipped ? 'unskip' : 'skip'}
+            </button>
+          )}
           {showTime && (
             <input
               type="time"

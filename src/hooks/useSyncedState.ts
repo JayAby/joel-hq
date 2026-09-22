@@ -8,7 +8,6 @@ import {
   MoneyItem,
   SavingsItem,
   FitnessState,
-  StudyState,
 } from '../types'
 
 const DOC_REF_PATH = ['joelhq', 'state'] as const
@@ -47,10 +46,13 @@ function isSavingsItemArray(arr: unknown): arr is SavingsItem[] {
   )
 }
 function isFitnessState(x: unknown): x is FitnessState {
-  return !!x && typeof x === 'object' && !Array.isArray(x) && Array.isArray((x as any).days)
+  return !!x && typeof x === 'object' && !Array.isArray(x) && typeof (x as any).weight === 'string'
 }
-function isStudyState(x: unknown): x is StudyState {
-  return !!x && typeof x === 'object' && !Array.isArray(x) && Array.isArray((x as any).days)
+function isHabitLog(x: unknown): x is Record<string, string[]> {
+  if (!x || typeof x !== 'object' || Array.isArray(x)) return false
+  return Object.values(x as Record<string, unknown>).every(
+    (v) => Array.isArray(v) && v.every((d) => typeof d === 'string'),
+  )
 }
 
 function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
@@ -72,7 +74,8 @@ function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
     debts: isMoneyItemArray(merged.debts) ? merged.debts : DEFAULT_STATE.debts,
     savings: isSavingsItemArray(merged.savings) ? merged.savings : DEFAULT_STATE.savings,
     fitness: isFitnessState(merged.fitness) ? merged.fitness : DEFAULT_STATE.fitness,
-    study: isStudyState(merged.study) ? merged.study : DEFAULT_STATE.study,
+    habitLog: isHabitLog(merged.habitLog) ? merged.habitLog : DEFAULT_STATE.habitLog,
+    plansSeeded: typeof merged.plansSeeded === 'boolean' ? merged.plansSeeded : DEFAULT_STATE.plansSeeded,
     goals: goals.length || Array.isArray(merged.goals) ? goals : DEFAULT_STATE.goals,
     notes: Array.isArray(merged.notes) ? merged.notes : DEFAULT_STATE.notes,
     hasOnboarded: typeof merged.hasOnboarded === 'boolean' ? merged.hasOnboarded : DEFAULT_STATE.hasOnboarded,

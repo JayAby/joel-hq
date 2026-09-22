@@ -2,18 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { useSyncedState } from './hooks/useSyncedState'
 import { handleSpotifyRedirect } from './spotify'
 import { notificationPermission, requestNotificationPermission, notify } from './notifications'
-import { mondayOf, Task, UNSCHEDULED_KEY } from './types'
+import { mondayOf, Task, UNSCHEDULED_KEY, HistoryEntry } from './types'
 import { resetDayKey } from './config'
 import { confirmDelete } from './confirm'
 import { exportData } from './exportData'
+import { generatePlanTasksForDate, activeHabits } from './plans'
 import WelcomeBanner from './components/WelcomeBanner'
 import Editable from './components/Editable'
 import ProgressBar from './components/ProgressBar'
 import SubtaskChecklist from './components/SubtaskChecklist'
 import MoneyProgressList from './components/MoneyProgressList'
 import SavingsProgressList from './components/SavingsProgressList'
-import { FitnessWeightPanel, FitnessWorkoutsPanel } from './components/FitnessWeek'
-import StudyWeek from './components/StudyWeek'
+import { FitnessWeightPanel } from './components/FitnessWeek'
 import TaskList from './components/TaskList'
 import NowPlaying from './components/NowPlaying'
 import Pomodoro from './components/Pomodoro'
@@ -22,11 +22,14 @@ import SwipeTabs from './components/SwipeTabs'
 import DevicesWidget from './components/DevicesWidget'
 import DevicesPage from './components/DevicesPage'
 import FocusLog from './components/FocusLog'
+import HabitsWidget from './components/HabitsWidget'
+import PlansWidget from './components/PlansWidget'
+import PlansPage from './components/PlansPage'
 import { useDevices } from './hooks/useDevices'
 import { useMyDevice } from './hooks/useMyDevice'
 import { useHistory } from './hooks/useHistory'
+import { usePlans } from './hooks/usePlans'
 import StreaksWidget from './components/StreaksWidget'
-import { HistoryEntry } from './types'
 
 function useClock() {
   const [now, setNow] = useState(new Date())
@@ -86,7 +89,8 @@ export default function App() {
   const { devices, addDevice, updateDevice, removeDevice } = useDevices()
   const { myDeviceId, bind, unbind } = useMyDevice(devices, updateDevice)
   const { entries: historyEntries, recordDay } = useHistory()
-  const [view, setView] = useState<'dashboard' | 'devices'>('dashboard')
+  const { plans, ready: plansReady, addPlan, updatePlan, removePlan } = usePlans()
+  const [view, setView] = useState<'dashboard' | 'devices' | 'plans'>('dashboard')
   const [openDeviceId, setOpenDeviceId] = useState<string | null>(null)
   const [focusLogOpen, setFocusLogOpen] = useState(false)
   const now = useClock()
@@ -138,16 +142,11 @@ export default function App() {
     if (ready && state.lastReset !== today) {
       const endingDate = new Date(state.lastReset)
       const dateKey = endingDate.toISOString().slice(0, 10)
-      const weekdayAbbrev = endingDate.toLocaleDateString('en-GB', { weekday: 'short' })
-      const fitnessDay = state.fitness.days.find((d) => d.day === weekdayAbbrev)
-      const studyDay = state.study.days.find((d) => d.day === weekdayAbbrev)
 
       const entry: HistoryEntry = {
         date: dateKey,
         tasksCompleted: state.tasks.filter((t) => t.done).length,
         tasksTotal: state.tasks.length,
-        workoutDone: fitnessDay?.done ?? false,
-        studyDone: studyDay?.done ?? false,
       }
       if (state.fitness.weight) entry.weight = state.fitness.weight
       recordDay(entry)
@@ -155,11 +154,11 @@ export default function App() {
       update((prev) => ({
         ...prev,
         lastReset: today,
-        tasks: prev.tasks.map((t) => ({ ...t, done: false })),
+        tasks: prev.tasks.map((t) => ({ ...t, done: false, skipped: false })),
         focusSubtasksByTask: {},
       }))
     }
-  }, [ready, now, state.lastReset, state.tasks, state.fitness, state.study, update, recordDay])
+  }, [ready, now, state.lastReset, state.tasks, state.fitness, update, recordDay])
 
   useEffect(() => {
     const thisMonday = mondayOf(now)
@@ -167,24 +166,71 @@ export default function App() {
       update((prev) => ({
         ...prev,
         lastWeekReset: thisMonday,
-        fitness: {
-          ...prev.fitness,
-          lastWeekWeight: prev.fitness.weight,
-          days: prev.fitness.days.map((d) => ({ ...d, done: false })),
-        },
-        study: {
-          ...prev.study,
-          days: prev.study.days.map((d) => ({ ...d, done: false })),
-        },
+        fitness: { ...prev.fitness, lastWeekWeight: prev.fitness.weight },
       }))
     }
   }, [ready, now, state.lastWeekReset, update])
+
+  useEffect(() => {
+    if (!ready || !plansReady) return
+    const referenceDate = new Date(state.lastReset)
+    const generated = generatePlanTasksForDate(plans, referenceDate)
+    const generatedIds = new Set(generated.map((t) => t.id))
+
+    update((prev) => {
+      const manual = prev.tasks.filter((t) => !t.planId)
+      const stillValid = prev.tasks.filter((t) => t.planId && generatedIds.has(t.id))
+      const merged = [...manual]
+      for (const g of generated) {
+        const existing = stillValid.find((t) => t.id === g.id)
+        merged.push(existing ?? g)
+      }
+      const sameLength = merged.length === prev.tasks.length
+      const sameIds = sameLength && merged.every((t, i) => t.id === prev.tasks[i]?.id)
+      if (sameIds) return prev
+      return { ...prev, tasks: merged }
+    })
+  }, [plans, plansReady, ready, state.lastReset, update])
+
+  useEffect(() => {
+    if (!ready || !plansReady || state.plansSeeded) return
+    if (plans.length === 0) {
+      addPlan({
+        name: 'Workout',
+        kind: 'habit',
+        startDate: resetDayKey(now),
+        recurrence: { frequency: 'weekly', daysOfWeek: [], endType: 'never' },
+        active: true,
+        habitTargetPerWeek: 4,
+      })
+      addPlan({
+        name: 'Study',
+        kind: 'habit',
+        startDate: resetDayKey(now),
+        recurrence: { frequency: 'weekly', daysOfWeek: [], endType: 'never' },
+        active: true,
+        habitTargetPerWeek: 4,
+      })
+    }
+    update((p) => ({ ...p, plansSeeded: true }))
+  }, [ready, plansReady, state.plansSeeded, plans.length, addPlan, update, now])
+
+  function toggleHabitToday(habitId: string) {
+    const todayKey = resetDayKey(now)
+    update((prev) => {
+      const current = prev.habitLog[habitId] ?? []
+      const has = current.includes(todayKey)
+      const nextDates = has ? current.filter((d) => d !== todayKey) : [...current, todayKey]
+      return { ...prev, habitLog: { ...prev.habitLog, [habitId]: nextDates } }
+    })
+  }
 
   const { current: currentTask, next: nextTask } = getCurrentAndNext(state.tasks, now)
   const focusKey = currentTask?.id ?? UNSCHEDULED_KEY
   const focusSubtasks = state.focusSubtasksByTask[focusKey] ?? []
   const focusDone = focusSubtasks.filter((t) => t.done).length
   const focusPct = focusSubtasks.length ? Math.round((focusDone / focusSubtasks.length) * 100) : 0
+  const habits = activeHabits(plans)
 
   if (view === 'devices') {
     return (
@@ -199,6 +245,18 @@ export default function App() {
         onRemoveDevice={removeDevice}
         onBind={bind}
         onUnbind={unbind}
+      />
+    )
+  }
+
+  if (view === 'plans') {
+    return (
+      <PlansPage
+        plans={plans}
+        onBack={() => setView('dashboard')}
+        onAdd={addPlan}
+        onUpdate={updatePlan}
+        onRemove={removePlan}
       />
     )
   }
@@ -379,41 +437,32 @@ export default function App() {
           </div>
         </div>
 
-        <div className="card accent-rose span-6">
+        <div className="card accent-rose span-4">
           <div className="card-head">
             <div className="card-title">
-              <span>🏋🏾</span> Fitness Check-in
+              <span>🏋🏾</span> Fitness
             </div>
           </div>
-          <SwipeTabs
-            tabs={[
-              {
-                label: 'Weight',
-                content: (
-                  <FitnessWeightPanel fitness={state.fitness} onChange={(fitness) => update((p) => ({ ...p, fitness }))} />
-                ),
-              },
-              {
-                label: 'Workouts',
-                content: (
-                  <FitnessWorkoutsPanel
-                    fitness={state.fitness}
-                    onChange={(fitness) => update((p) => ({ ...p, fitness }))}
-                  />
-                ),
-              },
-            ]}
-          />
+          <FitnessWeightPanel fitness={state.fitness} onChange={(fitness) => update((p) => ({ ...p, fitness }))} />
         </div>
 
-        <div className="card accent-amber span-6">
-          <div className="card-head">
-            <div className="card-title">
-              <span>📚</span> Study Tracker
-            </div>
-          </div>
-          <StudyWeek study={state.study} onChange={(study) => update((p) => ({ ...p, study }))} />
-        </div>
+        <HabitsWidget
+          habits={habits}
+          habitLog={state.habitLog}
+          now={now}
+          onToggleToday={toggleHabitToday}
+          onAddHabit={(name, target) =>
+            addPlan({
+              name,
+              kind: 'habit',
+              startDate: resetDayKey(now),
+              recurrence: { frequency: 'weekly', daysOfWeek: [], endType: 'never' },
+              active: true,
+              habitTargetPerWeek: target,
+            })
+          }
+          onRemoveHabit={(id) => removePlan(id)}
+        />
 
         <div className="card accent-mint span-6">
           <div className="card-head">
@@ -461,7 +510,7 @@ export default function App() {
 
         <NowPlaying />
         <Pomodoro />
-        <StreaksWidget entries={historyEntries} />
+        <StreaksWidget entries={historyEntries} habits={habits} habitLog={state.habitLog} now={now} />
 
         <div className="card accent-violet span-4">
           <div className="card-head">
@@ -471,6 +520,8 @@ export default function App() {
           </div>
           <LinksList links={state.links} onChange={(links) => update((p) => ({ ...p, links }))} />
         </div>
+
+        <PlansWidget plans={plans} onViewAll={() => setView('plans')} />
 
         <DevicesWidget
           devices={devices}
