@@ -74,7 +74,7 @@ a{ color: inherit; text-decoration: none; }
   .span-4,.span-5,.span-6,.span-7,.span-8{ grid-column: span 6; }
 }
 
-/* ---------- component styles that support App.tsx additions ---------- */
+/* ---------- missing component styles ---------- */
 .burger-btn{
   background: var(--surface-2); border:1px solid var(--line); color: var(--muted);
   width:30px; height:30px; border-radius:6px; cursor:pointer; font-size:14px;
@@ -117,37 +117,24 @@ a{ color: inherit; text-decoration: none; }
 
   .footer{ flex-direction: column; gap: 2px; }
 
-  /* Critical iOS fix: any input under 16px causes Safari to zoom in on
-     focus, which then doesn't zoom back out — makes the whole app feel
-     broken on iPhone. Every input across the app gets bumped to 16px here. */
   input, select, textarea{ font-size: 16px !important; }
 
-  /* Bigger tap targets — 11-16px hit areas are too small to reliably tap.
-     Padding grows the clickable area without blowing up the visual size. */
   .check{ width:20px; height:20px; }
   .del-btn{ padding:6px 8px; opacity: 0.6; }
   .card-link, .add-btn{ padding:8px 10px; }
   .swipe-arrow{ width:32px; height:32px; }
   .launch-tile-actions .del-btn{ padding:4px 6px; }
 
-  /* Device type / manual-status picker: 3 columns is cramped under ~375px */
   .type-grid{ grid-template-columns: repeat(2, 1fr); }
 
-  /* Modals: use more of the actual screen instead of floating a small card */
   .modal-panel{ max-width: 100%; max-height: 90vh; padding: 18px 16px; }
 
-  /* Focus log rows can get tight with the time + name + badge + pct + caret
-     all on one line on a narrow screen — let it wrap instead of overflowing */
   .focus-log-head{ flex-wrap: wrap; row-gap: 4px; }
 
-  /* Lock screen shouldn't have huge side padding eating the small viewport */
   .lock-panel{ padding: 22px 18px; }
 
   .welcome-banner{ flex-direction: column; align-items: flex-start; }
 
-  /* Hover-to-reveal delete/edit buttons don't work at all on touch devices
-     (there's no hover state) — without this, these buttons would be
-     genuinely invisible and unreachable on mobile, not just less discoverable. */
   .task-row .del-btn,
   .item-top-right .del-btn,
   .launch-tile-actions{
@@ -471,6 +458,7 @@ a{ color: inherit; text-decoration: none; }
 }
 .lock-btn:hover{ border-color: var(--rose); color: var(--rose); }
 
+/* ---------- recurring plans ---------- */
 .plan-badge{ font-size:10px; opacity:0.6; }
 .skip-link{
   background:none; border:none; color: var(--muted); font-size:10px; cursor:pointer;
@@ -501,3 +489,30 @@ a{ color: inherit; text-decoration: none; }
 .plan-row-desc{ color: var(--muted); font-size:11px; margin-top:2px; }
 
 .plan-summary{ display:flex; flex-direction:column; gap:6px; font-size:12.5px; color: var(--text); }
+
+/* ---------- nav tabs ---------- */
+.nav-tabs{ display:flex; gap:8px; margin-top:10px; }
+.nav-tab{
+  background: var(--surface-2); border:1px solid var(--line); color: var(--muted);
+  border-radius:6px; padding:6px 12px; font-size:11.5px; cursor:pointer;
+  font-family:'IBM Plex Mono',monospace;
+}
+.nav-tab:hover{ border-color: var(--mint); color: var(--text); }
+.nav-tab.active{ border-color: var(--mint); color: var(--mint); background: rgba(94,234,212,0.08); }
+
+/* ---------- loading screen ---------- */
+.loading-screen{
+  min-height: 60vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+
+/* ---------- quick add ---------- */
+.quick-add-btn{
+  position:fixed; bottom:18px; left:18px; width:46px; height:46px; border-radius:50%;
+  background: var(--mint); color:#0a0d12; border:none; font-size:24px; font-weight:700;
+  cursor:pointer; z-index:50; line-height:1; box-shadow: 0 2px 12px rgba(94,234,212,0.35);
+}
+.quick-add-btn:hover{ transform: scale(1.05); }
+
+/* ---------- per-day schedule builder ---------- */
+.day-items-block{ margin-top:14px; padding-top:12px; border-top:1px dashed var(--line); }
+.day-items-label{ font-size:11px; font-weight:700; color: var(--mint); text-transform:uppercase; letter-spacing:0.5px; }

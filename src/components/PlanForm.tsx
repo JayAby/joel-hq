@@ -25,12 +25,35 @@ export default function PlanForm({ onClose, onCreate }: Props) {
   const [endDate, setEndDate] = useState('')
   const [endCount, setEndCount] = useState('10')
 
-  const [scheduleItems, setScheduleItems] = useState<PlanScheduleItem[]>([{ time: '09:00', label: '' }])
+  const [perDayItems, setPerDayItems] = useState<Record<number, PlanScheduleItem[]>>({
+    1: [{ time: '09:00', label: '' }],
+  })
   const [routineItems, setRoutineItems] = useState<string[]>([''])
   const [habitTarget, setHabitTarget] = useState('4')
 
   function toggleDay(d: number) {
-    setDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()))
+    setDays((prev) => {
+      const has = prev.includes(d)
+      const next = has ? prev.filter((x) => x !== d) : [...prev, d].sort()
+      if (!has && !perDayItems[d]) {
+        setPerDayItems((pi) => ({ ...pi, [d]: [{ time: '09:00', label: '' }] }))
+      }
+      return next
+    })
+  }
+
+  function updateDayItem(day: number, index: number, patch: Partial<PlanScheduleItem>) {
+    setPerDayItems((pi) => {
+      const items = (pi[day] ?? []).slice()
+      items[index] = { ...items[index], ...patch }
+      return { ...pi, [day]: items }
+    })
+  }
+  function addDayItem(day: number) {
+    setPerDayItems((pi) => ({ ...pi, [day]: [...(pi[day] ?? []), { time: '09:00', label: '' }] }))
+  }
+  function removeDayItem(day: number, index: number) {
+    setPerDayItems((pi) => ({ ...pi, [day]: (pi[day] ?? []).filter((_, i) => i !== index) }))
   }
 
   function submit() {
@@ -53,11 +76,13 @@ export default function PlanForm({ onClose, onCreate }: Props) {
     }
 
     if (kind === 'schedule') {
-      const items = scheduleItems.filter((i) => i.label.trim())
-      if (items.length === 0) return
-      const scheduleByDay: Record<number, PlanScheduleItem[]> = {}
       const applyDays = frequency === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : days
-      for (const d of applyDays) scheduleByDay[d] = items
+      const scheduleByDay: Record<number, PlanScheduleItem[]> = {}
+      for (const d of applyDays) {
+        const items = (perDayItems[d] ?? []).filter((i) => i.label.trim())
+        if (items.length > 0) scheduleByDay[d] = items
+      }
+      if (Object.keys(scheduleByDay).length === 0) return
       onCreate({ ...base, scheduleByDay })
     } else if (kind === 'routine') {
       const items = routineItems.map((i) => i.trim()).filter(Boolean)
@@ -175,46 +200,38 @@ export default function PlanForm({ onClose, onCreate }: Props) {
       {kind === 'schedule' && (
         <>
           <label className="form-label" style={{ marginTop: 14 }}>
-            Items (applied to every checked day above)
+            Items per day
           </label>
-          {scheduleItems.map((item, i) => (
-            <div className="add-row" key={i} style={{ marginTop: 6 }}>
-              <input
-                type="time"
-                className="task-time-input"
-                style={{ marginLeft: 0 }}
-                value={item.time}
-                onChange={(e) => {
-                  const next = scheduleItems.slice()
-                  next[i] = { ...next[i], time: e.target.value }
-                  setScheduleItems(next)
-                }}
-              />
-              <input
-                value={item.label}
-                placeholder="e.g. Lecture: Semantics"
-                onChange={(e) => {
-                  const next = scheduleItems.slice()
-                  next[i] = { ...next[i], label: e.target.value }
-                  setScheduleItems(next)
-                }}
-              />
-              <button className="del-btn" onClick={() => setScheduleItems(scheduleItems.filter((_, idx) => idx !== i))}>
-                ✕
+          {(frequency === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : days).length === 0 && (
+            <div className="form-hint">Pick at least one day above first.</div>
+          )}
+          {(frequency === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : days).map((d) => (
+            <div key={d} className="day-items-block">
+              <div className="day-items-label">{DAY_LABELS[d]}</div>
+              {(perDayItems[d] ?? []).map((item, i) => (
+                <div className="add-row" key={i} style={{ marginTop: 6 }}>
+                  <input
+                    type="time"
+                    className="task-time-input"
+                    style={{ marginLeft: 0 }}
+                    value={item.time}
+                    onChange={(e) => updateDayItem(d, i, { time: e.target.value })}
+                  />
+                  <input
+                    value={item.label}
+                    placeholder="e.g. Lecture: Semantics"
+                    onChange={(e) => updateDayItem(d, i, { label: e.target.value })}
+                  />
+                  <button className="del-btn" onClick={() => removeDayItem(d, i)}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <button className="card-link" style={{ marginTop: 4 }} onClick={() => addDayItem(d)}>
+                + add item to {DAY_LABELS[d]}
               </button>
             </div>
           ))}
-          <button
-            className="card-link"
-            style={{ marginTop: 6 }}
-            onClick={() => setScheduleItems([...scheduleItems, { time: '09:00', label: '' }])}
-          >
-            + add item
-          </button>
-          <div className="form-hint" style={{ marginTop: 8 }}>
-            Want different items on different days? Create separate plans, one per day pattern (e.g. "Monday
-            Lectures", "Wednesday Lectures").
-          </div>
         </>
       )}
 

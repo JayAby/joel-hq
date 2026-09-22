@@ -19,12 +19,11 @@ import NowPlaying from './components/NowPlaying'
 import Pomodoro from './components/Pomodoro'
 import LinksList from './components/LinksList'
 import SwipeTabs from './components/SwipeTabs'
-import DevicesWidget from './components/DevicesWidget'
 import DevicesPage from './components/DevicesPage'
 import FocusLog from './components/FocusLog'
 import HabitsWidget from './components/HabitsWidget'
-import PlansWidget from './components/PlansWidget'
 import PlansPage from './components/PlansPage'
+import QuickAdd, { QuickAddDestination } from './components/QuickAdd'
 import { useDevices } from './hooks/useDevices'
 import { useMyDevice } from './hooks/useMyDevice'
 import { useHistory } from './hooks/useHistory'
@@ -232,33 +231,73 @@ export default function App() {
   const focusPct = focusSubtasks.length ? Math.round((focusDone / focusSubtasks.length) * 100) : 0
   const habits = activeHabits(plans)
 
+  if (!ready) {
+    return (
+      <div className="page">
+        <div className="loading-screen">
+          <div className="brand-mark">
+            JOEL <span>HQ</span>
+          </div>
+          <div className="np-status" style={{ marginTop: 12 }}>
+            Loading your HQ…
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const nav = (
+    <div className="nav-tabs">
+      <button className={`nav-tab${view === 'dashboard' ? ' active' : ''}`} onClick={() => setView('dashboard')}>
+        Dashboard
+      </button>
+      <button className={`nav-tab${view === 'plans' ? ' active' : ''}`} onClick={() => setView('plans')}>
+        🗓️ Plans
+      </button>
+      <button className={`nav-tab${view === 'devices' ? ' active' : ''}`} onClick={() => setView('devices')}>
+        🖥️ Devices
+      </button>
+    </div>
+  )
+
   if (view === 'devices') {
     return (
-      <DevicesPage
-        devices={devices}
-        now={now.getTime()}
-        myDeviceId={myDeviceId}
-        initialOpenId={openDeviceId}
-        onBack={() => setView('dashboard')}
-        onAddDevice={addDevice}
-        onUpdateDevice={updateDevice}
-        onRemoveDevice={removeDevice}
-        onBind={bind}
-        onUnbind={unbind}
-      />
+      <div className="page">
+        {nav}
+        <DevicesPage
+          devices={devices}
+          now={now.getTime()}
+          myDeviceId={myDeviceId}
+          initialOpenId={openDeviceId}
+          onBack={() => setView('dashboard')}
+          onAddDevice={addDevice}
+          onUpdateDevice={updateDevice}
+          onRemoveDevice={removeDevice}
+          onBind={bind}
+          onUnbind={unbind}
+        />
+      </div>
     )
   }
 
   if (view === 'plans') {
     return (
-      <PlansPage
-        plans={plans}
-        onBack={() => setView('dashboard')}
-        onAdd={addPlan}
-        onUpdate={updatePlan}
-        onRemove={removePlan}
-      />
+      <div className="page">
+        {nav}
+        <PlansPage
+          plans={plans}
+          onBack={() => setView('dashboard')}
+          onAdd={addPlan}
+          onUpdate={updatePlan}
+          onRemove={removePlan}
+        />
+      </div>
     )
+  }
+
+  function addQuickTask(destination: QuickAddDestination, task: Task) {
+    if (destination === 'notes') return
+    update((p) => ({ ...p, [destination]: [...p[destination], task] }))
   }
 
   return (
@@ -271,6 +310,7 @@ export default function App() {
             </div>
             <div className="brand-sub">plan · build · grow · win</div>
           </div>
+          {nav}
           <div className="greeting">
             {greetingFor(now).replace('Joel', '')}
             <span className="name">Joel</span>.
@@ -520,21 +560,6 @@ export default function App() {
           </div>
           <LinksList links={state.links} onChange={(links) => update((p) => ({ ...p, links }))} />
         </div>
-
-        <PlansWidget plans={plans} onViewAll={() => setView('plans')} />
-
-        <DevicesWidget
-          devices={devices}
-          now={now.getTime()}
-          onOpenDevice={(id) => {
-            setOpenDeviceId(id)
-            setView('devices')
-          }}
-          onViewAll={() => {
-            setOpenDeviceId(null)
-            setView('devices')
-          }}
-        />
       </div>
 
       <div className="footer">
@@ -542,6 +567,11 @@ export default function App() {
         <span>better habits →</span>
         <span>bigger dreams</span>
       </div>
+
+      <QuickAdd
+        onAddTask={addQuickTask}
+        onAddNote={(text) => update((p) => ({ ...p, notes: [...p.notes, text] }))}
+      />
     </div>
   )
 }
