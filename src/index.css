@@ -54,7 +54,7 @@ a{ color: inherit; text-decoration: none; }
 .grid{ display:grid; grid-template-columns: repeat(12, 1fr); gap: 16px; grid-auto-flow: dense; }
 .card{
   background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--line);
-  border-radius: 6px; padding: 16px 18px 18px; position:relative;
+  border-radius: 6px; padding: 16px 18px 18px; position:relative; overflow: hidden;
 }
 .card.accent-mint{ border-left-color: var(--mint); }
 .card.accent-amber{ border-left-color: var(--amber); }
@@ -143,7 +143,7 @@ a{ color: inherit; text-decoration: none; }
 }
 
 /* keep contentEditable divs from overflowing narrow columns */
-.item-name, .task-text, .note-text, .debt-name, .focus-title{ word-break: break-word; }
+.item-name, .task-text, .note-text, .debt-name, .focus-title{ word-break: break-word; min-width: 0; }
 
 .task-row{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px dashed var(--line); font-size:13px; }
 .task-row:last-child{ border-bottom:none; }
@@ -245,7 +245,7 @@ a{ color: inherit; text-decoration: none; }
 .item{ margin-bottom:14px; } .item:last-child{ margin-bottom:0; }
 .item-top{ display:flex; justify-content:space-between; align-items:baseline; font-size:13px; gap: 10px;}
 .item-top-right{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
-.item-name{ font-weight:600; outline:none; }
+.item-name{ font-weight:600; outline:none; flex: 1; }
 .item-sub{ color: var(--muted); font-size:11.5px; margin-top:2px; outline:none; }
 .pct{ font-size:11.5px; color: var(--muted); cursor: ns-resize; user-select:none; }
 .item-top-right .del-btn{ opacity: 0; }
@@ -472,7 +472,7 @@ a{ color: inherit; text-decoration: none; }
 .check.habit-checked{ background: var(--mint); border-color: var(--mint); color:#0a0d12; }
 .habit-info{ flex:1; }
 .habit-top{ display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:4px; }
-.habit-name{ font-weight:600; }
+.habit-name{ font-weight:600; flex: 1; min-width: 0; word-break: break-word; }
 .habit-count{ color: var(--muted); font-size:11px; }
 
 .day-picker{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
@@ -483,8 +483,8 @@ a{ color: inherit; text-decoration: none; }
 .day-btn.active{ border-color: var(--mint); color: var(--mint); background: rgba(94,234,212,0.08); }
 
 .plan-row{ display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px dashed var(--line); }
-.plan-row-main{ flex:1; }
-.plan-row-name{ font-weight:600; font-size:13px; }
+.plan-row-main{ flex:1; min-width: 0; }
+.plan-row-name{ font-weight:600; font-size:13px; word-break: break-word; }
 .plan-row-name.inactive{ color: var(--dim); text-decoration: line-through; }
 .plan-row-desc{ color: var(--muted); font-size:11px; margin-top:2px; }
 
@@ -516,3 +516,10 @@ a{ color: inherit; text-decoration: none; }
 /* ---------- per-day schedule builder ---------- */
 .day-items-block{ margin-top:14px; padding-top:12px; border-top:1px dashed var(--line); }
 .day-items-label{ font-size:11px; font-weight:700; color: var(--mint); text-transform:uppercase; letter-spacing:0.5px; }
+
+/* ---------- plan detail ---------- */
+.plan-detail-items{ font-size:12px; color: var(--text); }
+.plan-detail-item{ padding: 3px 0; color: var(--muted); }
+.plan-stats-row{ display:flex; gap:18px; font-size:12px; color: var(--muted); }
+.plan-stats-row b{ color: var(--text); font-family:'Space Grotesk',sans-serif; font-size:14px; }
+.detail-actions{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }

@@ -1,6 +1,6 @@
-import { RecurringPlan, PlanScheduleItem, Task } from './types'
+import { RecurringPlan, PlanScheduleItem, Task, PlanStats } from './types'
 
-function dateKey(d: Date): string {
+export function dateKey(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
@@ -9,7 +9,7 @@ function matchesFrequency(plan: RecurringPlan, date: Date): boolean {
   return plan.recurrence.daysOfWeek.includes(date.getDay())
 }
 
-function countMatchesUpTo(plan: RecurringPlan, targetDate: Date): number {
+export function countMatchesUpTo(plan: RecurringPlan, targetDate: Date): number {
   const cursor = new Date(plan.startDate)
   const target = new Date(dateKey(targetDate))
   let count = 0
@@ -21,6 +21,23 @@ function countMatchesUpTo(plan: RecurringPlan, targetDate: Date): number {
   }
   return count
 }
+
+export type PlanLifecycleStatus = 'upcoming' | 'active' | 'paused' | 'completed'
+
+export function planStatus(plan: RecurringPlan, today: Date): PlanLifecycleStatus {
+  if (!plan.active) return 'paused'
+
+  const todayKey = dateKey(today)
+  if (todayKey < plan.startDate) return 'upcoming'
+
+  const { endType, endDate, endCount } = plan.recurrence
+  if (endType === 'date' && endDate && todayKey > endDate) return 'completed'
+  if (endType === 'count' && endCount && countMatchesUpTo(plan, today) > endCount) return 'completed'
+
+  return 'active'
+}
+
+export const DEFAULT_PLAN_STATS: PlanStats = { generated: 0, completed: 0, skipped: 0 }
 
 export function planAppliesOn(plan: RecurringPlan, date: Date): boolean {
   if (!plan.active) return false

@@ -1,41 +1,48 @@
 import { useState } from 'react'
 import { RecurringPlan } from '../types'
+import { planStatus, PlanLifecycleStatus, dateKey } from '../plans'
 import PlanForm from './PlanForm'
-import { confirmDelete } from '../confirm'
+import PlanDetail from './PlanDetail'
 
 interface Props {
   plans: RecurringPlan[]
+  now: Date
   onBack: () => void
   onAdd: (plan: Omit<RecurringPlan, 'id' | 'createdAt'>) => void
   onUpdate: (id: string, patch: Partial<RecurringPlan>) => void
   onRemove: (id: string) => void
 }
 
-const KIND_META: Record<RecurringPlan['kind'], { label: string; icon: string }> = {
-  schedule: { label: 'Recurring Schedule', icon: '📅' },
-  habit: { label: 'Recurring Habits', icon: '🔁' },
-  routine: { label: 'Recurring Routines', icon: '🧩' },
+const KIND_ICON: Record<RecurringPlan['kind'], string> = {
+  schedule: '📅',
+  habit: '🔁',
+  routine: '🧩',
 }
 
-function describeRecurrence(plan: RecurringPlan): string {
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const freq =
-    plan.recurrence.frequency === 'daily'
-      ? 'Every day'
-      : `Every ${plan.recurrence.daysOfWeek.map((d) => days[d]).join(', ') || '—'}`
+const STATUS_GROUPS: { key: PlanLifecycleStatus; label: string }[] = [
+  { key: 'active', label: '🟢 Active' },
+  { key: 'upcoming', label: '🔵 Upcoming' },
+  { key: 'paused', label: '⏸️ Paused' },
+  { key: 'completed', label: '⚪ Completed' },
+]
+
+function rangeLabel(plan: RecurringPlan): string {
   const end =
     plan.recurrence.endType === 'never'
-      ? 'no end date'
+      ? 'Ongoing'
       : plan.recurrence.endType === 'date'
-        ? `until ${plan.recurrence.endDate}`
-        : `for ${plan.recurrence.endCount} occurrences`
-  return `${freq} · from ${plan.startDate} · ${end}`
+        ? plan.recurrence.endDate
+        : `after ${plan.recurrence.endCount}×`
+  return `${plan.startDate} → ${end}`
 }
 
-export default function PlansPage({ plans, onBack, onAdd, onUpdate, onRemove }: Props) {
+export default function PlansPage({ plans, now, onBack, onAdd, onUpdate, onRemove }: Props) {
   const [showAdd, setShowAdd] = useState(false)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
-  const groups: RecurringPlan['kind'][] = ['schedule', 'habit', 'routine']
+  const openPlan = plans.find((p) => p.id === openId) ?? null
+  const editingPlan = plans.find((p) => p.id === editingId) ?? null
 
   return (
     <div className="page">
@@ -58,31 +65,20 @@ export default function PlansPage({ plans, onBack, onAdd, onUpdate, onRemove }: 
         </div>
       )}
 
-      {groups.map((kind) => {
-        const items = plans.filter((p) => p.kind === kind)
+      {STATUS_GROUPS.map(({ key, label }) => {
+        const items = plans.filter((p) => planStatus(p, now) === key)
         if (items.length === 0) return null
-        const meta = KIND_META[kind]
         return (
-          <div key={kind} style={{ marginBottom: 24 }}>
-            <div className="section-label">
-              {meta.icon} {meta.label}
-            </div>
+          <div key={key} style={{ marginBottom: 24 }}>
+            <div className="section-label">{label}</div>
             {items.map((p) => (
-              <div className="plan-row" key={p.id}>
+              <div className="plan-row" key={p.id} onClick={() => setOpenId(p.id)} style={{ cursor: 'pointer' }}>
                 <div className="plan-row-main">
-                  <div className={`plan-row-name${p.active ? '' : ' inactive'}`}>{p.name}</div>
-                  <div className="plan-row-desc">{describeRecurrence(p)}</div>
+                  <div className="plan-row-name">
+                    {KIND_ICON[p.kind]} {p.name}
+                  </div>
+                  <div className="plan-row-desc">{rangeLabel(p)}</div>
                 </div>
-                <button className="card-link" onClick={() => onUpdate(p.id, { active: !p.active })}>
-                  {p.active ? 'pause' : 'resume'}
-                </button>
-                <button
-                  className="del-btn"
-                  style={{ opacity: 0.6 }}
-                  onClick={() => confirmDelete(`"${p.name}"`) && onRemove(p.id)}
-                >
-                  ✕
-                </button>
               </div>
             ))}
           </div>
@@ -92,9 +88,40 @@ export default function PlansPage({ plans, onBack, onAdd, onUpdate, onRemove }: 
       {showAdd && (
         <PlanForm
           onClose={() => setShowAdd(false)}
-          onCreate={(plan) => {
+          onSubmit={(plan) => {
             onAdd(plan)
             setShowAdd(false)
+          }}
+        />
+      )}
+
+      {editingPlan && (
+        <PlanForm
+          initialPlan={editingPlan}
+          onClose={() => setEditingId(null)}
+          onSubmit={(plan) => {
+            onUpdate(editingPlan.id, plan)
+            setEditingId(null)
+            setOpenId(null)
+          }}
+        />
+      )}
+
+      {openPlan && !editingPlan && (
+        <PlanDetail
+          plan={openPlan}
+          now={now}
+          onClose={() => setOpenId(null)}
+          onEdit={() => setEditingId(openPlan.id)}
+          onTogglePause={() => onUpdate(openPlan.id, { active: !openPlan.active })}
+          onEndNow={() =>
+            onUpdate(openPlan.id, {
+              recurrence: { ...openPlan.recurrence, endType: 'date', endDate: dateKey(now) },
+            })
+          }
+          onDelete={() => {
+            onRemove(openPlan.id)
+            setOpenId(null)
           }}
         />
       )}

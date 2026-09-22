@@ -150,6 +150,28 @@ export default function App() {
       if (state.fitness.weight) entry.weight = state.fitness.weight
       recordDay(entry)
 
+      const statDeltas: Record<string, { generated: number; completed: number; skipped: number }> = {}
+      for (const t of state.tasks) {
+        if (!t.planId) continue
+        const d = statDeltas[t.planId] ?? { generated: 0, completed: 0, skipped: 0 }
+        d.generated++
+        if (t.done) d.completed++
+        else if (t.skipped) d.skipped++
+        statDeltas[t.planId] = d
+      }
+      for (const [planId, delta] of Object.entries(statDeltas)) {
+        const plan = plans.find((p) => p.id === planId)
+        if (!plan) continue
+        const prevStats = plan.stats ?? { generated: 0, completed: 0, skipped: 0 }
+        updatePlan(planId, {
+          stats: {
+            generated: prevStats.generated + delta.generated,
+            completed: prevStats.completed + delta.completed,
+            skipped: prevStats.skipped + delta.skipped,
+          },
+        })
+      }
+
       update((prev) => ({
         ...prev,
         lastReset: today,
@@ -157,7 +179,7 @@ export default function App() {
         focusSubtasksByTask: {},
       }))
     }
-  }, [ready, now, state.lastReset, state.tasks, state.fitness, update, recordDay])
+  }, [ready, now, state.lastReset, state.tasks, state.fitness, update, recordDay, plans, updatePlan])
 
   useEffect(() => {
     const thisMonday = mondayOf(now)
@@ -286,6 +308,7 @@ export default function App() {
         {nav}
         <PlansPage
           plans={plans}
+          now={now}
           onBack={() => setView('dashboard')}
           onAdd={addPlan}
           onUpdate={updatePlan}

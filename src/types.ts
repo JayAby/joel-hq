@@ -108,23 +108,24 @@ export interface PlanScheduleItem {
   label: string
 }
 
+export interface PlanStats {
+  generated: number
+  completed: number
+  skipped: number
+}
+
 export interface RecurringPlan {
   id: string
   name: string
   kind: PlanKind
-  startDate: string // YYYY-MM-DD
+  startDate: string
   recurrence: RecurrenceRule
   active: boolean
   createdAt: number
-
-  // kind === 'schedule'
   scheduleByDay?: Record<number, PlanScheduleItem[]>
-
-  // kind === 'habit'
   habitTargetPerWeek?: number
-
-  // kind === 'routine'
   routineChecklist?: string[]
+  stats?: PlanStats
 }
 
 // ---------------------------------------------------------------------------

@@ -10,26 +10,37 @@ import {
 
 interface Props {
   onClose: () => void
-  onCreate: (plan: Omit<RecurringPlan, 'id' | 'createdAt'>) => void
+  onSubmit: (plan: Omit<RecurringPlan, 'id' | 'createdAt'>) => void
+  initialPlan?: RecurringPlan
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-export default function PlanForm({ onClose, onCreate }: Props) {
-  const [kind, setKind] = useState<PlanKind>('schedule')
-  const [name, setName] = useState('')
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [frequency, setFrequency] = useState<RecurrenceFrequency>('weekly')
-  const [days, setDays] = useState<number[]>([1])
-  const [endType, setEndType] = useState<RecurrenceEnd>('never')
-  const [endDate, setEndDate] = useState('')
-  const [endCount, setEndCount] = useState('10')
+export default function PlanForm({ onClose, onSubmit, initialPlan }: Props) {
+  const isEditing = !!initialPlan
 
-  const [perDayItems, setPerDayItems] = useState<Record<number, PlanScheduleItem[]>>({
-    1: [{ time: '09:00', label: '' }],
-  })
-  const [routineItems, setRoutineItems] = useState<string[]>([''])
-  const [habitTarget, setHabitTarget] = useState('4')
+  const [kind, setKind] = useState<PlanKind>(initialPlan?.kind ?? 'schedule')
+  const [name, setName] = useState(initialPlan?.name ?? '')
+  const [startDate, setStartDate] = useState(
+    initialPlan?.startDate ?? new Date().toISOString().slice(0, 10),
+  )
+  const [frequency, setFrequency] = useState<RecurrenceFrequency>(
+    initialPlan?.recurrence.frequency ?? 'weekly',
+  )
+  const [days, setDays] = useState<number[]>(
+    initialPlan?.recurrence.daysOfWeek?.length ? initialPlan.recurrence.daysOfWeek : [1],
+  )
+  const [endType, setEndType] = useState<RecurrenceEnd>(initialPlan?.recurrence.endType ?? 'never')
+  const [endDate, setEndDate] = useState(initialPlan?.recurrence.endDate ?? '')
+  const [endCount, setEndCount] = useState(String(initialPlan?.recurrence.endCount ?? 10))
+
+  const [perDayItems, setPerDayItems] = useState<Record<number, PlanScheduleItem[]>>(
+    initialPlan?.scheduleByDay ?? { 1: [{ time: '09:00', label: '' }] },
+  )
+  const [routineItems, setRoutineItems] = useState<string[]>(
+    initialPlan?.routineChecklist?.length ? initialPlan.routineChecklist : [''],
+  )
+  const [habitTarget, setHabitTarget] = useState(String(initialPlan?.habitTargetPerWeek ?? 4))
 
   function toggleDay(d: number) {
     setDays((prev) => {
@@ -72,7 +83,8 @@ export default function PlanForm({ onClose, onCreate }: Props) {
       kind,
       startDate,
       recurrence,
-      active: true,
+      active: initialPlan?.active ?? true,
+      stats: initialPlan?.stats,
     }
 
     if (kind === 'schedule') {
@@ -83,32 +95,33 @@ export default function PlanForm({ onClose, onCreate }: Props) {
         if (items.length > 0) scheduleByDay[d] = items
       }
       if (Object.keys(scheduleByDay).length === 0) return
-      onCreate({ ...base, scheduleByDay })
+      onSubmit({ ...base, scheduleByDay })
     } else if (kind === 'routine') {
       const items = routineItems.map((i) => i.trim()).filter(Boolean)
       if (items.length === 0) return
-      onCreate({ ...base, routineChecklist: items })
+      onSubmit({ ...base, routineChecklist: items })
     } else {
       const t = Number(habitTarget)
       if (!t || t <= 0) return
-      onCreate({ ...base, habitTargetPerWeek: Math.min(7, t) })
+      onSubmit({ ...base, habitTargetPerWeek: Math.min(7, t) })
     }
   }
 
   return (
-    <Modal title="New Recurring Plan" onClose={onClose}>
+    <Modal title={isEditing ? `Edit "${initialPlan!.name}"` : 'New Recurring Plan'} onClose={onClose}>
       <label className="form-label">What is this?</label>
       <div className="type-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-        <button className={`type-btn${kind === 'schedule' ? ' active' : ''}`} onClick={() => setKind('schedule')}>
+        <button className={`type-btn${kind === 'schedule' ? ' active' : ''}`} onClick={() => setKind('schedule')} disabled={isEditing}>
           📅 Schedule
         </button>
-        <button className={`type-btn${kind === 'habit' ? ' active' : ''}`} onClick={() => setKind('habit')}>
+        <button className={`type-btn${kind === 'habit' ? ' active' : ''}`} onClick={() => setKind('habit')} disabled={isEditing}>
           🔁 Habit
         </button>
-        <button className={`type-btn${kind === 'routine' ? ' active' : ''}`} onClick={() => setKind('routine')}>
+        <button className={`type-btn${kind === 'routine' ? ' active' : ''}`} onClick={() => setKind('routine')} disabled={isEditing}>
           🧩 Routine
         </button>
       </div>
+      {isEditing && <div className="form-hint" style={{ marginTop: 6 }}>Plan type can't change after creation — make a new plan instead.</div>}
 
       <label className="form-label" style={{ marginTop: 14 }}>
         Name
@@ -280,7 +293,7 @@ export default function PlanForm({ onClose, onCreate }: Props) {
       )}
 
       <button className="connect-btn" style={{ marginTop: 18 }} onClick={submit}>
-        Create plan
+        {isEditing ? 'Save changes' : 'Create plan'}
       </button>
     </Modal>
   )
