@@ -59,7 +59,7 @@ export default function TaskList({
       }
     }
 
-    const task: Task = { id: crypto.randomUUID(), t: text, done: false }
+    const task: Task = { id: crypto.randomUUID(), t: text, done: false, createdAt: Date.now() }
     if (time) task.time = time
     onChange([...tasks, task])
     setDraftText('')

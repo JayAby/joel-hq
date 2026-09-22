@@ -48,7 +48,7 @@ export default function QuickAdd({ onAddTask, onAddNote }: Props) {
       onAddNote(trimmed)
     } else {
       const parsed = destination === 'tasks' ? parseTaskInput(trimmed) : { text: trimmed, time: undefined }
-      const task: Task = { id: crypto.randomUUID(), t: parsed.text, done: false }
+      const task: Task = { id: crypto.randomUUID(), t: parsed.text, done: false, createdAt: Date.now() }
       if (parsed.time) task.time = parsed.time
       onAddTask(destination, task)
     }

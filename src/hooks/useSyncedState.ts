@@ -17,7 +17,10 @@ function ensureTaskIds(arr: unknown): Task[] {
   if (!Array.isArray(arr)) return []
   return arr
     .filter((x) => x && typeof x.t === 'string' && typeof x.done === 'boolean')
-    .map((x) => (typeof x.id === 'string' && x.id ? x : { ...x, id: crypto.randomUUID() }))
+    .map((x) => {
+      const withId = typeof x.id === 'string' && x.id ? x : { ...x, id: crypto.randomUUID() }
+      return typeof withId.createdAt === 'number' ? withId : { ...withId, createdAt: Date.now() }
+    })
 }
 
 function isTaskArray(arr: unknown): arr is Task[] {
@@ -54,6 +57,15 @@ function isHabitLog(x: unknown): x is Record<string, string[]> {
     (v) => Array.isArray(v) && v.every((d) => typeof d === 'string'),
   )
 }
+function isClearedTaskArray(arr: unknown): boolean {
+  return (
+    Array.isArray(arr) &&
+    arr.every(
+      (x) =>
+        x && typeof x.text === 'string' && typeof x.wasDone === 'boolean' && typeof x.clearedAt === 'number',
+    )
+  )
+}
 
 function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
   const merged = { ...DEFAULT_STATE, ...raw }
@@ -80,6 +92,9 @@ function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
     notes: Array.isArray(merged.notes) ? merged.notes : DEFAULT_STATE.notes,
     hasOnboarded: typeof merged.hasOnboarded === 'boolean' ? merged.hasOnboarded : DEFAULT_STATE.hasOnboarded,
     links: Array.isArray(merged.links) ? merged.links : DEFAULT_STATE.links,
+    recentlyCleared: isClearedTaskArray(merged.recentlyCleared)
+      ? (merged.recentlyCleared as DashboardState['recentlyCleared'])
+      : DEFAULT_STATE.recentlyCleared,
   }
 }
 

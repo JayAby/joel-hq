@@ -181,16 +181,33 @@ export default function App() {
     }
   }, [ready, now, state.lastReset, state.tasks, state.fitness, update, recordDay, plans, updatePlan])
 
+  // Manual Today tasks get their own rolling 24h window from when they were
+  // added — independent of the 6am day boundary, so something typed at
+  // 11pm doesn't vanish at the very next reset a few hours later. Once a
+  // task passes 24h it's removed (done or not — "each day is a new day")
+  // and quietly logged rather than silently disappearing without a trace.
   useEffect(() => {
-    const thisMonday = mondayOf(now)
-    if (ready && state.lastWeekReset !== thisMonday) {
-      update((prev) => ({
-        ...prev,
-        lastWeekReset: thisMonday,
-        fitness: { ...prev.fitness, lastWeekWeight: prev.fitness.weight },
+    if (!ready) return
+    const cutoff = now.getTime() - 24 * 60 * 60 * 1000
+    const expiring = state.tasks.filter((t) => !t.planId && (t.createdAt ?? 0) <= cutoff)
+    if (expiring.length === 0) return
+
+    update((prev) => {
+      const stillExpiring = prev.tasks.filter((t) => !t.planId && (t.createdAt ?? 0) <= cutoff)
+      if (stillExpiring.length === 0) return prev
+      const expiringIds = new Set(stillExpiring.map((t) => t.id))
+      const cleared = stillExpiring.map((t) => ({
+        text: t.t,
+        wasDone: t.done,
+        clearedAt: Date.now(),
       }))
-    }
-  }, [ready, now, state.lastWeekReset, update])
+      return {
+        ...prev,
+        tasks: prev.tasks.filter((t) => !expiringIds.has(t.id)),
+        recentlyCleared: [...cleared, ...prev.recentlyCleared].slice(0, 50),
+      }
+    })
+  }, [ready, now, state.tasks, update])
 
   useEffect(() => {
     if (!ready || !plansReady) return

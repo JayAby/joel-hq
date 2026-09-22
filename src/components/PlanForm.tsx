@@ -5,6 +5,7 @@ import {
   PlanKind,
   RecurrenceFrequency,
   RecurrenceEnd,
+  RecurrenceRule,
   PlanScheduleItem,
 } from '../types'
 
@@ -70,22 +71,25 @@ export default function PlanForm({ onClose, onSubmit, initialPlan }: Props) {
   function submit() {
     if (!name.trim()) return
 
-    const recurrence = {
+    const recurrence: RecurrenceRule = {
       frequency,
       daysOfWeek: frequency === 'weekly' ? days : [],
       endType,
-      endDate: endType === 'date' ? endDate || undefined : undefined,
-      endCount: endType === 'count' ? Number(endCount) || undefined : undefined,
+    }
+    if (endType === 'date' && endDate) recurrence.endDate = endDate
+    if (endType === 'count') {
+      const n = Number(endCount)
+      if (n > 0) recurrence.endCount = n
     }
 
-    const base = {
+    const base: Partial<RecurringPlan> & Pick<RecurringPlan, 'name' | 'kind' | 'startDate' | 'recurrence' | 'active'> = {
       name: name.trim(),
       kind,
       startDate,
       recurrence,
       active: initialPlan?.active ?? true,
-      stats: initialPlan?.stats,
     }
+    if (initialPlan?.stats) base.stats = initialPlan.stats
 
     if (kind === 'schedule') {
       const applyDays = frequency === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : days
@@ -95,15 +99,15 @@ export default function PlanForm({ onClose, onSubmit, initialPlan }: Props) {
         if (items.length > 0) scheduleByDay[d] = items
       }
       if (Object.keys(scheduleByDay).length === 0) return
-      onSubmit({ ...base, scheduleByDay })
+      onSubmit({ ...base, scheduleByDay } as Omit<RecurringPlan, 'id' | 'createdAt'>)
     } else if (kind === 'routine') {
       const items = routineItems.map((i) => i.trim()).filter(Boolean)
       if (items.length === 0) return
-      onSubmit({ ...base, routineChecklist: items })
+      onSubmit({ ...base, routineChecklist: items } as Omit<RecurringPlan, 'id' | 'createdAt'>)
     } else {
       const t = Number(habitTarget)
       if (!t || t <= 0) return
-      onSubmit({ ...base, habitTargetPerWeek: Math.min(7, t) })
+      onSubmit({ ...base, habitTargetPerWeek: Math.min(7, t) } as Omit<RecurringPlan, 'id' | 'createdAt'>)
     }
   }
 
