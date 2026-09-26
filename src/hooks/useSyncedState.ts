@@ -9,17 +9,21 @@ import {
   SavingsItem,
   FitnessState,
 } from '../types'
+import { resetDayKey } from '../config'
 
 const DOC_REF_PATH = ['joelhq', 'state'] as const
 const LOCAL_KEY = 'joelhq-local-state'
 
 function ensureTaskIds(arr: unknown): Task[] {
   if (!Array.isArray(arr)) return []
+  const today = resetDayKey(new Date())
   return arr
     .filter((x) => x && typeof x.t === 'string' && typeof x.done === 'boolean')
     .map((x) => {
-      const withId = typeof x.id === 'string' && x.id ? x : { ...x, id: crypto.randomUUID() }
-      return typeof withId.createdAt === 'number' ? withId : { ...withId, createdAt: Date.now() }
+      let t = typeof x.id === 'string' && x.id ? x : { ...x, id: crypto.randomUUID() }
+      if (typeof t.createdAt !== 'number') t = { ...t, createdAt: Date.now() }
+      if (typeof t.date !== 'string') t = { ...t, date: today }
+      return t
     })
 }
 

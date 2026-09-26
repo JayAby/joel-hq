@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Modal from './Modal'
 import { Task } from '../types'
 import { parseTaskInput } from '../quickAdd'
+import { resetDayKey } from '../config'
 
 export type QuickAddDestination = 'tasks' | 'projects' | 'career' | 'goals' | 'notes'
 
@@ -49,7 +50,8 @@ export default function QuickAdd({ onAddTask, onAddNote }: Props) {
     } else {
       const parsed = destination === 'tasks' ? parseTaskInput(trimmed) : { text: trimmed, time: undefined }
       const task: Task = { id: crypto.randomUUID(), t: parsed.text, done: false, createdAt: Date.now() }
-      if (parsed.time) task.time = parsed.time
+      if (destination === 'tasks') task.date = resetDayKey(new Date())
+        if (parsed.time) task.time = parsed.time
       onAddTask(destination, task)
     }
     setText('')

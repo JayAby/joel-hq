@@ -6,13 +6,16 @@ interface Props {
   tasks: Task[]
   subtasksByTask: Record<string, Task[]>
   currentTaskId: string | null
+  today: string
   onChangeSubtasks: (taskId: string, subtasks: Task[]) => void
 }
 
-export default function FocusLog({ tasks, subtasksByTask, currentTaskId, onChangeSubtasks }: Props) {
+export default function FocusLog({ tasks, subtasksByTask, currentTaskId, today, onChangeSubtasks }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(currentTaskId)
 
-  const timed = tasks.filter((t) => t.time).sort((a, b) => (a.time! < b.time! ? -1 : 1))
+  const timed = tasks
+    .filter((t) => t.time && (!t.date || t.date === today))
+    .sort((a, b) => (a.time! < b.time! ? -1 : 1))
 
   if (timed.length === 0) {
     return <div className="np-status">Add times to your tasks in Today to build a focus log.</div>

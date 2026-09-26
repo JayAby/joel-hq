@@ -10,6 +10,8 @@ interface Props {
   showTime?: boolean
   allowAdd?: boolean
   allowTimeInput?: boolean
+  allowDateInput?: boolean
+  today?: string
 }
 
 export default function TaskList({
@@ -18,9 +20,12 @@ export default function TaskList({
   showTime = false,
   allowAdd = false,
   allowTimeInput = false,
+  allowDateInput = false,
+  today,
 }: Props) {
   const [draftText, setDraftText] = useState('')
   const [draftTime, setDraftTime] = useState('')
+  const [draftDate, setDraftDate] = useState(today ?? '')
 
   function toggle(i: number) {
     const next = tasks.slice()
@@ -61,45 +66,51 @@ export default function TaskList({
 
     const task: Task = { id: crypto.randomUUID(), t: text, done: false, createdAt: Date.now() }
     if (time) task.time = time
+    if (allowDateInput) task.date = draftDate || today
     onChange([...tasks, task])
     setDraftText('')
     setDraftTime('')
+    setDraftDate(today ?? '')
   }
 
   return (
     <div>
-      {tasks.map((task, i) => (
-        <div
-          className={`task-row${task.done ? ' done' : ''}${task.skipped ? ' skipped' : ''}`}
-          key={task.id}
-        >
-          <button className="check" onClick={() => toggle(i)}>
-            ✓
-          </button>
-          <Editable className="task-text" value={task.t} onChange={(v) => editText(i, v)} />
-          {task.planId && (
-            <span className="plan-badge" title="Auto-generated from a recurring plan">
-              🔁
-            </span>
-          )}
-          {task.planId && !task.done && (
-            <button className="skip-link" onClick={() => toggleSkip(i)}>
-              {task.skipped ? 'unskip' : 'skip'}
+      {tasks.map((task, i) => {
+        if (allowDateInput && today && task.date && task.date > today) return null
+
+        return (
+          <div
+            className={`task-row${task.done ? ' done' : ''}${task.skipped ? ' skipped' : ''}`}
+            key={task.id}
+          >
+            <button className="check" onClick={() => toggle(i)}>
+              ✓
             </button>
-          )}
-          {showTime && (
-            <input
-              type="time"
-              className="task-time-input"
-              value={task.time ?? ''}
-              onChange={(e) => editTime(i, e.target.value)}
-            />
-          )}
-          <button className="del-btn" onClick={() => remove(i)}>
-            ✕
-          </button>
-        </div>
-      ))}
+            <Editable className="task-text" value={task.t} onChange={(v) => editText(i, v)} />
+            {task.planId && (
+              <span className="plan-badge" title="Auto-generated from a recurring plan">
+                🔁
+              </span>
+            )}
+            {task.planId && !task.done && (
+              <button className="skip-link" onClick={() => toggleSkip(i)}>
+                {task.skipped ? 'unskip' : 'skip'}
+              </button>
+            )}
+            {showTime && (
+              <input
+                type="time"
+                className="task-time-input"
+                value={task.time ?? ''}
+                onChange={(e) => editTime(i, e.target.value)}
+              />
+            )}
+            <button className="del-btn" onClick={() => remove(i)}>
+              ✕
+            </button>
+          </div>
+        )
+      })}
       {allowAdd && (
         <div className="add-row">
           <input
@@ -114,6 +125,15 @@ export default function TaskList({
               className="add-time-input"
               value={draftTime}
               onChange={(e) => setDraftTime(e.target.value)}
+            />
+          )}
+          {allowDateInput && (
+            <input
+              type="date"
+              className="add-date-input"
+              value={draftDate}
+              onChange={(e) => setDraftDate(e.target.value)}
+              title="Which day this task is for"
             />
           )}
           <button className="add-btn" onClick={add}>

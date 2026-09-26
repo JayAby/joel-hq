@@ -7,6 +7,7 @@ export interface Task {
   done: boolean
   skipped?: boolean
   planId?: string
+  date?: string
   createdAt?: number
 }
 
