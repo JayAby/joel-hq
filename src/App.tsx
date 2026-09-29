@@ -6,7 +6,7 @@ import { mondayOf, Task, UNSCHEDULED_KEY, HistoryEntry } from './types'
 import { resetDayKey } from './config'
 import { confirmDelete } from './confirm'
 import { exportData } from './exportData'
-import { generatePlanTasksForDate, activeHabits } from './plans'
+import { generatePlanTasksForDate, activeHabits, habitWeekCount } from './plans'
 import WelcomeBanner from './components/WelcomeBanner'
 import Editable from './components/Editable'
 import ProgressBar from './components/ProgressBar'
@@ -24,10 +24,14 @@ import FocusLog from './components/FocusLog'
 import HabitsWidget from './components/HabitsWidget'
 import PlansPage from './components/PlansPage'
 import QuickAdd, { QuickAddDestination } from './components/QuickAdd'
+import ShoppingList from './components/ShoppingList'
+import WeeklyTodoList from './components/WeeklyTodoList'
 import { useDevices } from './hooks/useDevices'
 import { useMyDevice } from './hooks/useMyDevice'
 import { useHistory } from './hooks/useHistory'
 import { usePlans } from './hooks/usePlans'
+import { useHabitWeeks } from './hooks/useHabitWeeks'
+import { useWeeklyTodoWeeks } from './hooks/useWeeklyTodoWeeks'
 import StreaksWidget from './components/StreaksWidget'
 
 function useClock() {
@@ -89,6 +93,8 @@ export default function App() {
   const { myDeviceId, bind, unbind } = useMyDevice(devices, updateDevice)
   const { entries: historyEntries, recordDay } = useHistory()
   const { plans, ready: plansReady, addPlan, updatePlan, removePlan } = usePlans()
+  const { weeks: habitWeeks, recordWeek } = useHabitWeeks()
+  const { weeks: weeklyTodoWeeks, recordWeek: recordTodoWeek } = useWeeklyTodoWeeks()
   const [view, setView] = useState<'dashboard' | 'devices' | 'plans'>('dashboard')
   const [openDeviceId, setOpenDeviceId] = useState<string | null>(null)
   const [focusLogOpen, setFocusLogOpen] = useState(false)
@@ -197,13 +203,42 @@ export default function App() {
   useEffect(() => {
     const thisMonday = mondayOf(now)
     if (ready && state.lastWeekReset !== thisMonday) {
+      const endingWeekStart = state.lastWeekReset
+      const habitSnaps = activeHabits(plans).map((h) => ({
+        id: h.id,
+        name: h.name,
+        count: habitWeekCount(h.id, state.habitLog, endingWeekStart),
+        target: h.habitTargetPerWeek ?? 1,
+      }))
+      if (habitSnaps.length > 0) {
+        recordWeek({ weekStart: endingWeekStart, habits: habitSnaps })
+      }
+
+      if (state.weeklyTodos.length > 0) {
+        recordTodoWeek({
+          weekStart: endingWeekStart,
+          items: state.weeklyTodos.map((t) => ({ text: t.t, done: t.done })),
+        })
+      }
+
       update((prev) => ({
         ...prev,
         lastWeekReset: thisMonday,
+        weeklyTodos: [],
         fitness: { ...prev.fitness, lastWeekWeight: prev.fitness.weight },
       }))
     }
-  }, [ready, now, state.lastWeekReset, update])
+  }, [
+    ready,
+    now,
+    state.lastWeekReset,
+    state.habitLog,
+    state.weeklyTodos,
+    plans,
+    update,
+    recordWeek,
+    recordTodoWeek,
+  ])
 
   useEffect(() => {
     if (!ready || !plansReady) return
@@ -543,6 +578,14 @@ export default function App() {
           onRemoveHabit={(id) => removePlan(id)}
         />
 
+        <ShoppingList items={state.shoppingItems} onChange={(shoppingItems) => update((p) => ({ ...p, shoppingItems }))} />
+
+        <WeeklyTodoList
+          items={state.weeklyTodos}
+          onChange={(weeklyTodos) => update((p) => ({ ...p, weeklyTodos }))}
+          previousWeeks={weeklyTodoWeeks}
+        />
+
         <div className="card accent-mint span-6">
           <div className="card-head">
             <div className="card-title">
@@ -589,7 +632,13 @@ export default function App() {
 
         <NowPlaying />
         <Pomodoro />
-        <StreaksWidget entries={historyEntries} habits={habits} habitLog={state.habitLog} now={now} />
+        <StreaksWidget
+          entries={historyEntries}
+          habits={habits}
+          habitLog={state.habitLog}
+          habitWeeks={habitWeeks}
+          now={now}
+        />
 
         <div className="card accent-violet span-4">
           <div className="card-head">

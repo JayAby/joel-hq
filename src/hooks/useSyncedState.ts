@@ -8,6 +8,7 @@ import {
   MoneyItem,
   SavingsItem,
   FitnessState,
+  ShoppingItem,
 } from '../types'
 import { resetDayKey } from '../config'
 
@@ -70,6 +71,19 @@ function isClearedTaskArray(arr: unknown): boolean {
     )
   )
 }
+function isShoppingItemArray(arr: unknown): arr is ShoppingItem[] {
+  return (
+    Array.isArray(arr) &&
+    arr.every(
+      (x) =>
+        x &&
+        typeof x.id === 'string' &&
+        typeof x.name === 'string' &&
+        typeof x.category === 'string' &&
+        typeof x.done === 'boolean',
+    )
+  )
+}
 
 function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
   const merged = { ...DEFAULT_STATE, ...raw }
@@ -78,6 +92,7 @@ function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
   const projects = ensureTaskIds(merged.projects)
   const career = ensureTaskIds(merged.career)
   const goals = ensureTaskIds(merged.goals)
+  const weeklyTodos = ensureTaskIds(merged.weeklyTodos)
 
   return {
     ...merged,
@@ -99,6 +114,10 @@ function normalize(raw: Partial<DashboardState> | undefined): DashboardState {
     recentlyCleared: isClearedTaskArray(merged.recentlyCleared)
       ? (merged.recentlyCleared as DashboardState['recentlyCleared'])
       : DEFAULT_STATE.recentlyCleared,
+    shoppingItems: isShoppingItemArray(merged.shoppingItems)
+      ? merged.shoppingItems
+      : DEFAULT_STATE.shoppingItems,
+    weeklyTodos: weeklyTodos.length || Array.isArray(merged.weeklyTodos) ? weeklyTodos : DEFAULT_STATE.weeklyTodos,
   }
 }
 

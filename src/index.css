@@ -69,12 +69,10 @@ a{ color: inherit; text-decoration: none; }
 .span-4{ grid-column: span 4; } .span-5{ grid-column: span 5; } .span-6{ grid-column: span 6; }
 .span-7{ grid-column: span 7; } .span-8{ grid-column: span 8; } .span-12{ grid-column: span 12; }
 
-/* ---------- tablet ---------- */
 @media (max-width: 1000px){
   .span-4,.span-5,.span-6,.span-7,.span-8{ grid-column: span 6; }
 }
 
-/* ---------- missing component styles ---------- */
 .burger-btn{
   background: var(--surface-2); border:1px solid var(--line); color: var(--muted);
   width:30px; height:30px; border-radius:6px; cursor:pointer; font-size:14px;
@@ -94,7 +92,6 @@ a{ color: inherit; text-decoration: none; }
 }
 .welcome-text{ flex:1; min-width:220px; }
 
-/* ---------- mobile ---------- */
 @media (max-width: 640px){
   .page{ padding: 16px 14px 40px; }
   .grid{ grid-template-columns: minmax(0, 1fr); gap: 12px; }
@@ -142,7 +139,6 @@ a{ color: inherit; text-decoration: none; }
   }
 }
 
-/* keep contentEditable divs from overflowing narrow columns */
 .item-name, .task-text, .note-text, .debt-name, .focus-title{ word-break: break-word; min-width: 0; }
 
 .task-row{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px dashed var(--line); font-size:13px; }
@@ -256,6 +252,11 @@ a{ color: inherit; text-decoration: none; }
   color: var(--muted); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:3px 5px;
   margin-left: auto; width: 92px; color-scheme: dark;
 }
+.add-date-input{
+  background: var(--surface-2); border:1px solid var(--line); border-radius:4px;
+  color: var(--muted); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:3px 5px;
+  width: 130px; color-scheme: dark;
+}
 .section-label{ color: var(--muted); font-size:10.5px; letter-spacing:0.5px; text-transform:uppercase; margin: 4px 0 8px; }
 
 .launch-tile{
@@ -345,7 +346,6 @@ a{ color: inherit; text-decoration: none; }
 [contenteditable="true"]:hover{ background: rgba(94,234,212,0.06); border-radius:3px; }
 [contenteditable="true"]:focus{ background: rgba(94,234,212,0.1); border-radius:3px; }
 
-/* ---------- device hub ---------- */
 .device-row{
   display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px dashed var(--line);
   font-size:12.5px; cursor:pointer;
@@ -378,7 +378,6 @@ a{ color: inherit; text-decoration: none; }
 .device-card-lastseen{ font-size:10.5px; color: var(--muted); }
 .device-card-battery{ font-size:10.5px; color: var(--muted); margin-top:4px; }
 
-/* ---------- modal ---------- */
 .modal-overlay{
   position:fixed; inset:0; background: rgba(5,7,10,0.7); backdrop-filter: blur(3px);
   display:flex; align-items:center; justify-content:center; z-index:100; padding:20px;
@@ -416,7 +415,6 @@ a{ color: inherit; text-decoration: none; }
 .detail-connections{ margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
 .connection-row{ font-size:12px; color: var(--muted); margin-top:4px; }
 
-/* ---------- focus log ---------- */
 .focus-log{ display:flex; flex-direction:column; gap:8px; }
 .focus-log-item{ background: var(--surface-2); border:1px solid var(--line); border-radius:6px; overflow:hidden; }
 .focus-log-item.current{ border-color: var(--amber); }
@@ -431,7 +429,6 @@ a{ color: inherit; text-decoration: none; }
 .focus-log-caret{ color: var(--dim); font-size:11px; }
 .focus-log-body{ padding: 0 12px 12px; border-top:1px solid var(--line); }
 
-/* ---------- streaks ---------- */
 .streak-row{ display:flex; align-items:center; gap:8px; font-size:12.5px; padding:6px 0; border-bottom:1px dashed var(--line); }
 .streak-row:last-of-type{ border-bottom:none; }
 .streak-icon{ font-size:14px; }
@@ -441,7 +438,6 @@ a{ color: inherit; text-decoration: none; }
 .streak-dots{ display:flex; gap:6px; }
 .streak-dot{ width:14px; height:14px; border-radius:4px; }
 
-/* ---------- auth gate ---------- */
 .lock-screen{
   min-height:100vh; display:flex; align-items:center; justify-content:center;
   background: var(--bg); padding:20px;
@@ -458,7 +454,6 @@ a{ color: inherit; text-decoration: none; }
 }
 .lock-btn:hover{ border-color: var(--rose); color: var(--rose); }
 
-/* ---------- recurring plans ---------- */
 .plan-badge{ font-size:10px; opacity:0.6; }
 .skip-link{
   background:none; border:none; color: var(--muted); font-size:10px; cursor:pointer;
@@ -490,7 +485,6 @@ a{ color: inherit; text-decoration: none; }
 
 .plan-summary{ display:flex; flex-direction:column; gap:6px; font-size:12.5px; color: var(--text); }
 
-/* ---------- nav tabs ---------- */
 .nav-tabs{ display:flex; gap:8px; margin-top:10px; }
 .nav-tab{
   background: var(--surface-2); border:1px solid var(--line); color: var(--muted);
@@ -500,12 +494,10 @@ a{ color: inherit; text-decoration: none; }
 .nav-tab:hover{ border-color: var(--mint); color: var(--text); }
 .nav-tab.active{ border-color: var(--mint); color: var(--mint); background: rgba(94,234,212,0.08); }
 
-/* ---------- loading screen ---------- */
 .loading-screen{
   min-height: 60vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
 }
 
-/* ---------- quick add ---------- */
 .quick-add-btn{
   position:fixed; bottom:18px; left:18px; width:46px; height:46px; border-radius:50%;
   background: var(--mint); color:#0a0d12; border:none; font-size:24px; font-weight:700;
@@ -513,19 +505,17 @@ a{ color: inherit; text-decoration: none; }
 }
 .quick-add-btn:hover{ transform: scale(1.05); }
 
-/* ---------- per-day schedule builder ---------- */
 .day-items-block{ margin-top:14px; padding-top:12px; border-top:1px dashed var(--line); }
 .day-items-label{ font-size:11px; font-weight:700; color: var(--mint); text-transform:uppercase; letter-spacing:0.5px; }
 
-/* ---------- plan detail ---------- */
 .plan-detail-items{ font-size:12px; color: var(--text); }
 .plan-detail-item{ padding: 3px 0; color: var(--muted); }
 .plan-stats-row{ display:flex; gap:18px; font-size:12px; color: var(--muted); }
 .plan-stats-row b{ color: var(--text); font-family:'Space Grotesk',sans-serif; font-size:14px; }
 .detail-actions{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
 
-.add-date-input{
-  background: var(--surface-2); border:1px solid var(--line); border-radius:4px;
-  color: var(--muted); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:3px 5px;
-  width: 130px; color-scheme: dark;
-}
+.prev-weeks{ margin-top:14px; padding-top:12px; border-top:1px dashed var(--line); }
+.prev-weeks-list{ margin-top:10px; display:flex; flex-direction:column; gap:12px; }
+.prev-week-row{ font-size:11.5px; }
+.prev-week-date{ color: var(--mint); font-weight:600; margin-bottom:4px; }
+.prev-week-habit{ color: var(--muted); margin-left:8px; }

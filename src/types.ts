@@ -135,15 +135,16 @@ export interface DashboardState {
   links: LinkItem[]
   quote: string
   recentlyCleared: ClearedTask[]
+  shoppingItems: ShoppingItem[]
+  weeklyTodos: Task[]
 }
 
 export function mondayOf(d: Date): string {
-  const date = new Date(d)
-  const day = date.getDay()
+  const logicalDay = new Date(resetDayKey(d))
+  const day = logicalDay.getDay()
   const diff = (day === 0 ? -6 : 1) - day
-  date.setDate(date.getDate() + diff)
-  date.setHours(0, 0, 0, 0)
-  return date.toISOString().slice(0, 10)
+  logicalDay.setDate(logicalDay.getDate() + diff)
+  return logicalDay.toISOString().slice(0, 10)
 }
 
 function newTask(t: string, time?: string): Task {
@@ -192,4 +193,28 @@ export const DEFAULT_STATE: DashboardState = {
   ],
   quote: 'Discipline builds the freedom you want.',
   recentlyCleared: [],
+  shoppingItems: [
+    { id: crypto.randomUUID(), name: 'Example item — rename or delete me', category: 'Grocery', done: false, createdAt: Date.now() },
+  ],
+  weeklyTodos: [newTask('Example weekly goal — rename or delete me')],
+}
+
+export interface ShoppingItem {
+  id: string
+  name: string
+  category: string
+  done: boolean
+  createdAt: number
+}
+
+export const SHOPPING_CATEGORY_PRESETS = ['Grocery', 'Clothing', 'Household', 'Electronics', 'Other']
+
+export interface HabitWeekSnapshot {
+  weekStart: string
+  habits: { id: string; name: string; count: number; target: number }[]
+}
+
+export interface WeeklyTodoSnapshot {
+  weekStart: string
+  items: { text: string; done: boolean }[]
 }

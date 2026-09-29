@@ -1,4 +1,5 @@
-import { HistoryEntry, RecurringPlan } from '../types'
+import { useState } from 'react'
+import { HistoryEntry, RecurringPlan, HabitWeekSnapshot } from '../types'
 import { lastNDaysDots, weeklySummary } from '../streaks'
 import { habitStreakDays } from '../plans'
 
@@ -6,6 +7,7 @@ interface Props {
   entries: HistoryEntry[]
   habits: RecurringPlan[]
   habitLog: Record<string, string[]>
+  habitWeeks: HabitWeekSnapshot[]
   now: Date
 }
 
@@ -16,7 +18,8 @@ const DOT_STYLE: Record<string, string> = {
   'no-data': 'var(--line)',
 }
 
-export default function StreaksWidget({ entries, habits, habitLog, now }: Props) {
+export default function StreaksWidget({ entries, habits, habitLog, habitWeeks, now }: Props) {
+  const [showPrevWeeks, setShowPrevWeeks] = useState(false)
   const dots = lastNDaysDots(entries, 7)
   const summary = weeklySummary(entries)
 
@@ -55,6 +58,28 @@ export default function StreaksWidget({ entries, habits, habitLog, now }: Props)
         </div>
       )}
       {summary && <div className="streak-summary">{summary}</div>}
+
+      {habitWeeks.length > 0 && (
+        <div className="prev-weeks">
+          <button className="card-link" onClick={() => setShowPrevWeeks((s) => !s)}>
+            {showPrevWeeks ? '▾ hide previous weeks' : `▸ previous weeks (${habitWeeks.length})`}
+          </button>
+          {showPrevWeeks && (
+            <div className="prev-weeks-list">
+              {habitWeeks.map((w) => (
+                <div className="prev-week-row" key={w.weekStart}>
+                  <div className="prev-week-date">Week of {w.weekStart}</div>
+                  {w.habits.map((h) => (
+                    <div className="prev-week-habit" key={h.id}>
+                      {h.name}: {h.count}/{h.target}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
