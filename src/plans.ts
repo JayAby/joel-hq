@@ -1,8 +1,7 @@
 import { RecurringPlan, PlanScheduleItem, Task, PlanStats } from './types'
+import { localDateKey, resetDayKey, parseLocalDateKey } from './config'
 
-export function dateKey(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
+export const dateKey = localDateKey
 
 function matchesFrequency(plan: RecurringPlan, date: Date): boolean {
   if (plan.recurrence.frequency === 'daily') return true
@@ -10,8 +9,8 @@ function matchesFrequency(plan: RecurringPlan, date: Date): boolean {
 }
 
 export function countMatchesUpTo(plan: RecurringPlan, targetDate: Date): number {
-  const cursor = new Date(plan.startDate)
-  const target = new Date(dateKey(targetDate))
+  const cursor = parseLocalDateKey(plan.startDate)
+  const target = parseLocalDateKey(dateKey(targetDate))
   let count = 0
   let guard = 0
   while (cursor <= target && guard < 3660) {
@@ -104,13 +103,13 @@ export function isHabitDoneToday(habitId: string, habitLog: Record<string, strin
 export function habitStreakDays(habitId: string, habitLog: Record<string, string[]>, now: Date): number {
   const dates = new Set(habitLog[habitId] ?? [])
   const cursor = new Date(now)
-  let key = cursor.toISOString().slice(0, 10)
+  let key = resetDayKey(cursor)
   if (!dates.has(key)) cursor.setDate(cursor.getDate() - 1)
 
   let streak = 0
   let guard = 0
   while (guard < 3660) {
-    key = cursor.toISOString().slice(0, 10)
+    key = resetDayKey(cursor)
     if (!dates.has(key)) break
     streak++
     cursor.setDate(cursor.getDate() - 1)

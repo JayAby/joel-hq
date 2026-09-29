@@ -1,4 +1,4 @@
-import { resetDayKey } from './config'
+import { resetDayKey, localDateKey } from './config'
 
 export interface Task {
   id: string
@@ -140,11 +140,12 @@ export interface DashboardState {
 }
 
 export function mondayOf(d: Date): string {
-  const logicalDay = new Date(resetDayKey(d))
-  const day = logicalDay.getDay()
-  const diff = (day === 0 ? -6 : 1) - day
+  const [y, m, day] = resetDayKey(d).split('-').map(Number)
+  const logicalDay = new Date(y, m - 1, day)
+  const dow = logicalDay.getDay()
+  const diff = (dow === 0 ? -6 : 1) - dow
   logicalDay.setDate(logicalDay.getDate() + diff)
-  return logicalDay.toISOString().slice(0, 10)
+  return localDateKey(logicalDay)
 }
 
 function newTask(t: string, time?: string): Task {

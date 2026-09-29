@@ -1,4 +1,5 @@
 import { DashboardState, DeviceDoc, HistoryEntry } from './types'
+import { localDateKey } from './config'
 
 export function exportData(
   state: DashboardState,
@@ -15,7 +16,7 @@ export function exportData(
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `joel-hq-backup-${new Date().toISOString().slice(0, 10)}.json`
+  a.download = `joel-hq-backup-${localDateKey(new Date())}.json`
   document.body.appendChild(a)
   a.click()
   a.remove()

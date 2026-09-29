@@ -1,4 +1,5 @@
 import { HistoryEntry } from './types'
+import { resetDayKey } from './config'
 
 export interface DayDot {
   date: string
@@ -12,7 +13,7 @@ export function lastNDaysDots(entries: HistoryEntry[], n: number): DayDot[] {
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    const key = d.toISOString().slice(0, 10)
+    const key = resetDayKey(d)
     const e = byDate.get(key)
 
     if (!e) {
@@ -35,7 +36,7 @@ export function lastNDaysDots(entries: HistoryEntry[], n: number): DayDot[] {
 export function weeklySummary(entries: HistoryEntry[]): string | null {
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - 7)
-  const cutoffKey = cutoff.toISOString().slice(0, 10)
+  const cutoffKey = resetDayKey(cutoff)
   const week = entries.filter((e) => e.date >= cutoffKey)
 
   if (week.length === 0) return null

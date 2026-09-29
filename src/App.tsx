@@ -3,7 +3,7 @@ import { useSyncedState } from './hooks/useSyncedState'
 import { handleSpotifyRedirect } from './spotify'
 import { notificationPermission, requestNotificationPermission, notify } from './notifications'
 import { mondayOf, Task, UNSCHEDULED_KEY, HistoryEntry } from './types'
-import { resetDayKey } from './config'
+import { resetDayKey, parseLocalDateKey } from './config'
 import { confirmDelete } from './confirm'
 import { exportData } from './exportData'
 import { generatePlanTasksForDate, activeHabits, habitWeekCount } from './plans'
@@ -145,8 +145,7 @@ export default function App() {
   useEffect(() => {
     const today = resetDayKey(now)
     if (ready && state.lastReset !== today) {
-      const endingDate = new Date(state.lastReset)
-      const dateKey = endingDate.toISOString().slice(0, 10)
+      const dateKey = state.lastReset
 
       const entry: HistoryEntry = {
         date: dateKey,
@@ -242,7 +241,7 @@ export default function App() {
 
   useEffect(() => {
     if (!ready || !plansReady) return
-    const referenceDate = new Date(state.lastReset)
+    const referenceDate = parseLocalDateKey(state.lastReset)
     const generated = generatePlanTasksForDate(plans, referenceDate)
     const generatedIds = new Set(generated.map((t) => t.id))
 

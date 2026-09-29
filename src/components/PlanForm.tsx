@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Modal from './Modal'
+import { localDateKey } from '../config'
 import {
   RecurringPlan,
   PlanKind,
@@ -23,7 +24,7 @@ export default function PlanForm({ onClose, onSubmit, initialPlan }: Props) {
   const [kind, setKind] = useState<PlanKind>(initialPlan?.kind ?? 'schedule')
   const [name, setName] = useState(initialPlan?.name ?? '')
   const [startDate, setStartDate] = useState(
-    initialPlan?.startDate ?? new Date().toISOString().slice(0, 10),
+    initialPlan?.startDate ?? localDateKey(new Date()),
   )
   const [frequency, setFrequency] = useState<RecurrenceFrequency>(
     initialPlan?.recurrence.frequency ?? 'weekly',
