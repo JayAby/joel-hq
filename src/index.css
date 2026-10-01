@@ -519,3 +519,122 @@ a{ color: inherit; text-decoration: none; }
 .prev-week-row{ font-size:11.5px; }
 .prev-week-date{ color: var(--mint); font-weight:600; margin-bottom:4px; }
 .prev-week-habit{ color: var(--muted); margin-left:8px; }
+
+.app-shell{ display:flex; min-height:100vh; }
+.app-main{ flex:1; min-width:0; }
+
+.sidebar{
+  width: 220px; flex-shrink:0; background: var(--surface); border-right:1px solid var(--line);
+  display:flex; flex-direction:column; padding: 20px 14px; position:sticky; top:0; height:100vh;
+  overflow-y:auto;
+}
+.sidebar-brand{ display:flex; align-items:center; gap:10px; padding: 4px 8px 18px; border-bottom:1px solid var(--line); margin-bottom:14px; }
+.sidebar-brand-icon{ font-size:22px; }
+.sidebar-brand-name{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; letter-spacing:0.5px; }
+.sidebar-brand-sub{ color: var(--muted); font-size:9.5px; margin-top:1px; }
+
+.sidebar-nav{ display:flex; flex-direction:column; gap:2px; flex:1; }
+.sidebar-item{
+  display:flex; align-items:center; gap:10px; background:none; border:none; color: var(--muted);
+  font-family:'IBM Plex Mono',monospace; font-size:12.5px; padding:9px 10px; border-radius:7px;
+  cursor:pointer; text-align:left; width:100%;
+}
+.sidebar-item svg{ font-size:15px; flex-shrink:0; }
+.sidebar-item:hover{ background: var(--surface-2); color: var(--text); }
+.sidebar-item.active{ background: rgba(94,234,212,0.1); color: var(--mint); }
+.sidebar-divider{ height:1px; background: var(--line); margin:10px 4px; }
+
+.sidebar-profile{
+  display:flex; align-items:center; gap:10px; padding:12px 8px; border-top:1px solid var(--line);
+  margin-top:10px; position:relative;
+}
+.sidebar-avatar{
+  width:34px; height:34px; border-radius:50%; background: linear-gradient(135deg, var(--mint), var(--violet));
+  display:flex; align-items:center; justify-content:center; font-weight:700; color:#0a0d12; flex-shrink:0; font-size:14px;
+}
+.sidebar-profile-name{ font-size:12.5px; font-weight:600; }
+.sidebar-profile-role{ font-size:9.5px; color: var(--muted); margin-top:1px; }
+.sidebar-status-dot{ width:8px; height:8px; border-radius:50%; background: var(--mint); position:absolute; right:10px; top:14px; }
+
+@media (max-width: 900px){
+  .sidebar{ display:none; }
+}
+
+.topbar-slim{
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  padding: 18px 28px 0; font-size:11px; color: var(--muted);
+}
+.topbar-slim-left{ display:flex; align-items:center; gap:12px; }
+.topbar-slim-right{ text-align:right; }
+.topbar-slim .dot{ width:7px; height:7px; border-radius:50%; background: var(--mint); display:inline-block; margin-right:4px; }
+.topbar-slim .dot.off{ background: var(--dim); }
+
+.hero-banner{
+  position:relative; margin: 14px 28px 20px; border-radius: 14px; overflow:hidden; min-height:160px;
+  background: linear-gradient(160deg, #2a1a3a 0%, #4a2545 35%, #a85a3a 70%, #e08a4a 100%);
+  display:flex; align-items:flex-end; padding: 22px 26px;
+}
+.hero-skyline{ position:absolute; bottom:0; left:0; width:100%; height:55%; }
+.hero-content{ position:relative; z-index:1; }
+.hero-greeting{ font-family:'Space Grotesk',sans-serif; font-size:28px; font-weight:700; color:#fff; }
+.hero-greeting span{ color: var(--mint); }
+.hero-tagline{ color: rgba(255,255,255,0.75); font-size:13px; margin-top:4px; }
+.hero-weather{
+  position:absolute; top:20px; right:24px; z-index:1; display:flex; align-items:center; gap:10px;
+  background: rgba(10,13,18,0.45); backdrop-filter: blur(4px); padding:8px 14px; border-radius:10px;
+}
+.hero-weather-icon{ font-size:26px; }
+.hero-weather-temp{ color:#fff; font-weight:700; font-size:17px; font-family:'Space Grotesk',sans-serif; }
+.hero-weather-loc{ color: rgba(255,255,255,0.7); font-size:10.5px; }
+
+@media (max-width: 640px){
+  .topbar-slim{ padding: 14px 14px 0; }
+  .hero-banner{ margin: 10px 14px 16px; min-height:130px; padding:16px 16px; }
+  .hero-greeting{ font-size:21px; }
+}
+
+.card-icon-badge{
+  display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px;
+  border-radius:8px; font-size:14px; flex-shrink:0;
+}
+.badge-mint{ background: rgba(94,234,212,0.15); }
+.badge-amber{ background: rgba(242,161,84,0.15); }
+.badge-rose{ background: rgba(242,113,140,0.15); }
+.badge-violet{ background: rgba(167,139,250,0.15); }
+
+.money-avatar{
+  width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
+  font-size:10.5px; font-weight:700; color:#0a0d12; flex-shrink:0; margin-right:2px;
+}
+
+.launch-brand-icon{ font-size:19px; }
+
+.np-row-big{ display:flex; gap:14px; align-items:center; margin-bottom:14px; }
+.np-art-big{
+  width:72px; height:72px; border-radius:10px; flex-shrink:0; overflow:hidden;
+  background: linear-gradient(135deg, var(--violet), var(--rose));
+  display:flex; align-items:center; justify-content:center; font-size:28px;
+}
+.np-art-big img{ width:100%; height:100%; object-fit:cover; }
+.np-info{ min-width:0; }
+.np-controls{ display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:14px; }
+.np-ctrl-btn{
+  background:none; border:none; color: var(--muted); font-size:16px; cursor:pointer; padding:4px;
+  border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center;
+}
+.np-ctrl-btn:hover{ color: var(--text); }
+.np-ctrl-btn.active{ color: var(--mint); }
+.np-ctrl-play{
+  background: var(--mint); color:#0a0d12; width:42px; height:42px; font-size:17px;
+}
+.np-ctrl-play:hover{ color:#0a0d12; transform: scale(1.05); }
+.np-recent{ margin-top:12px; padding-top:12px; border-top:1px dashed var(--line); }
+.np-recent-row{ display:flex; align-items:center; gap:10px; padding:6px 0; }
+.np-recent-art{
+  width:30px; height:30px; border-radius:6px; overflow:hidden; flex-shrink:0;
+  background: var(--surface-2); display:flex; align-items:center; justify-content:center; font-size:14px;
+}
+.np-recent-art img{ width:100%; height:100%; object-fit:cover; }
+.np-recent-info{ min-width:0; }
+.np-recent-title{ font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.np-recent-artist{ font-size:10px; color: var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
