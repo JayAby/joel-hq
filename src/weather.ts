@@ -33,30 +33,17 @@ function metaFor(code: number) {
   return WEATHER_CODE_META[code] ?? { label: 'Weather', icon: '🌡️' }
 }
 
-async function reverseGeocode(lat: number, lon: number): Promise<string> {
-  try {
-    const res = await fetch(
-      `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&count=1`,
-    )
-    const data = await res.json()
-    return data?.results?.[0]?.name ?? 'Your location'
-  } catch {
-    return 'Your location'
-  }
-}
-
 async function fetchByCoords(lat: number, lon: number): Promise<WeatherData | null> {
   try {
-    const [weatherRes, name] = await Promise.all([
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`),
-      reverseGeocode(lat, lon),
-    ])
+    const weatherRes = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`,
+    )
     const data = await weatherRes.json()
     const code = data?.current?.weather_code
     const temp = data?.current?.temperature_2m
     if (typeof temp !== 'number') return null
     const meta = metaFor(code)
-    return { tempC: Math.round(temp), label: meta.label, icon: meta.icon, locationName: name }
+    return { tempC: Math.round(temp), label: meta.label, icon: meta.icon, locationName: 'Your location' }
   } catch {
     return null
   }
