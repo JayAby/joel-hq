@@ -4,6 +4,7 @@ import { mondayOf } from '../types'
 import { habitWeekCount, isHabitDoneToday } from '../plans'
 import ProgressBar from './ProgressBar'
 import { confirmDelete } from '../confirm'
+import { resetDayKey } from '../config'
 
 interface Props {
   habits: RecurringPlan[]
@@ -25,7 +26,7 @@ export default function HabitsWidget({
   const [name, setName] = useState('')
   const [target, setTarget] = useState('4')
 
-  const todayKey = now.toISOString().slice(0, 10)
+  const todayKey = resetDayKey(now)
   const weekStart = mondayOf(now)
 
   function add() {

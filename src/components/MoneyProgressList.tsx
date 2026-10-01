@@ -2,6 +2,14 @@ import { useState } from 'react'
 import { MoneyItem } from '../types'
 import Editable from './Editable'
 import ProgressBar from './ProgressBar'
+import { confirmDelete } from '../confirm'
+
+const AVATAR_COLORS = ['#5eead4', '#f2a154', '#f2718c', '#a78bfa', '#60a5fa', '#34d399']
+function avatarColorFor(name: string): string {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length]
+}
 
 interface Props {
   items: MoneyItem[]
@@ -19,6 +27,7 @@ export default function MoneyProgressList({ items, onChange, barClass = '' }: Pr
     onChange(next)
   }
   function remove(i: number) {
+    if (!confirmDelete(`"${items[i].name}"`)) return
     onChange(items.filter((_, idx) => idx !== i))
   }
   function add() {
@@ -54,6 +63,9 @@ export default function MoneyProgressList({ items, onChange, barClass = '' }: Pr
         return (
           <div className="item" key={i}>
             <div className="item-top">
+              <span className="money-avatar" style={{ background: avatarColorFor(item.name) }}>
+                {item.name.trim().charAt(0).toUpperCase() || '£'}
+              </span>
               <Editable className="item-name" value={item.name} onChange={(v) => update(i, { name: v })} />
               <button className="del-btn" style={{ opacity: 0.5 }} onClick={() => remove(i)}>
                 ✕

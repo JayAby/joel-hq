@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { LinkItem } from '../types'
 import Editable from './Editable'
+import { confirmDelete } from '../confirm'
+import { brandIconFor } from '../brandIcons'
 
 interface Props {
   links: LinkItem[]
@@ -25,6 +27,7 @@ export default function LinksList({ links, onChange }: Props) {
     onChange(updated)
   }
   function remove(i: number) {
+    if (!confirmDelete(`"${links[i].name}"`)) return
     onChange(links.filter((_, idx) => idx !== i))
   }
   function add() {
@@ -37,22 +40,30 @@ export default function LinksList({ links, onChange }: Props) {
   return (
     <div>
       <div className="launch-grid">
-        {links.map((l, i) => (
-          <div className="launch-tile" key={i}>
-            <div className="launch-tile-actions">
-              <button className="del-btn" style={{ opacity: 0.7 }} onClick={() => editUrl(i)} title="Edit URL">
-                ✎
-              </button>
-              <button className="del-btn" style={{ opacity: 0.7 }} onClick={() => remove(i)} title="Remove">
-                ✕
-              </button>
+        {links.map((l, i) => {
+          const { icon: Icon, color } = brandIconFor(l.name)
+          return (
+            <div
+              className="launch-tile"
+              key={i}
+              onClick={() => window.open(l.url, '_blank', 'noopener,noreferrer')}
+              title={l.url}
+            >
+              <div className="launch-tile-actions" onClick={(e) => e.stopPropagation()}>
+                <button className="del-btn" style={{ opacity: 0.7 }} onClick={() => editUrl(i)} title="Edit URL">
+                  ✎
+                </button>
+                <button className="del-btn" style={{ opacity: 0.7 }} onClick={() => remove(i)} title="Remove">
+                  ✕
+                </button>
+              </div>
+              <Icon className="launch-brand-icon" style={{ color }} />
+              <div onClick={(e) => e.stopPropagation()}>
+                <Editable as="span" className="launch-name" value={l.name} onChange={(v) => updateName(i, v)} />
+              </div>
             </div>
-            <a className="launch-open" href={l.url} target="_blank" rel="noreferrer" title={l.url}>
-              ↗
-            </a>
-            <Editable as="span" className="launch-name" value={l.name} onChange={(v) => updateName(i, v)} />
-          </div>
-        ))}
+          )
+        })}
       </div>
       <div className="add-row" style={{ marginTop: 10 }}>
         <input
