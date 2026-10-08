@@ -1,0 +1,69 @@
+/* Mobile bottom navigation — shown only under 900px */
+.mnav-bar, .mnav-backdrop { display: none; }
+
+@media (max-width: 899px) {
+  .app-main { padding-bottom: calc(84px + env(safe-area-inset-bottom)) !important; }
+
+  .mnav-bar {
+    display: flex;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 900;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    gap: 4px;
+  }
+  .mnav-tab {
+    flex: 1;
+    min-width: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px;
+    padding: 8px 4px;
+    background: transparent;
+    border: 0;
+    border-radius: 12px;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .mnav-tab svg { width: 22px; height: 22px; }
+  .mnav-tab.active { color: var(--text); background: var(--surface-2); }
+  .mnav-tab.active svg { color: var(--violet); }
+
+  .mnav-backdrop {
+    display: block;
+    position: fixed; inset: 0;
+    z-index: 950;
+    background: rgba(0, 0, 0, 0.55);
+  }
+  .mnav-sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    border-radius: 20px 20px 0 0;
+    padding: 16px 16px calc(92px + env(safe-area-inset-bottom));
+    max-height: 75vh;
+    overflow-y: auto;
+  }
+  .mnav-sheet-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; color: var(--text); font-weight: 600;
+  }
+  .mnav-close { background: transparent; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; }
+  .mnav-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .mnav-tile {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 14px 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .mnav-tile svg { width: 22px; height: 22px; color: var(--violet); }
+
+  /* floating quick-add sits above the bar */
+  .quick-add-fab, .qa-fab { bottom: calc(80px + env(safe-area-inset-bottom)) !important; }
+}
