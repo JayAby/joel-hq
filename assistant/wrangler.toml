@@ -1,0 +1,21 @@
+name = "joel-hq-assistant"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Free Cloudflare AI. Check the current model list in the Cloudflare
+# dashboard (Workers AI > Models) and change this if the model is retired.
+[ai]
+binding = "AI"
+
+[vars]
+AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+# The only login that may use the assistant from the website. Must match the
+# email you log in to HQ with (the one in your Firestore rules).
+ALLOWED_EMAIL = "joel@jo3lhq.local"
+# Websites allowed to call this API.
+ALLOWED_ORIGINS = "https://jayaby.github.io,http://localhost:5173,http://localhost:5174"
+
+# Cron runs in UTC. It fires every 5 minutes and the code decides what to do
+# using Europe/London time, so daylight saving never breaks a schedule.
+[triggers]
+crons = ["*/5 * * * *"]
