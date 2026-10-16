@@ -1,4 +1,6 @@
-import { FiHome, FiCalendar, FiMonitor } from 'react-icons/fi'
+import { useState } from 'react'
+import { FiHome, FiCalendar, FiMonitor, FiMessageCircle } from 'react-icons/fi'
+import AssistantPanel from './AssistantPanel'
 import MobileNav from './MobileNav'
 import { SECTION_ITEMS, type ViewName } from './navItems'
 
@@ -9,6 +11,9 @@ interface Props {
 }
 
 export default function Sidebar({ view, onNavigateView, onScrollTo }: Props) {
+  // The assistant lives here so it works on every page without touching App.tsx.
+  const [assistantOpen, setAssistantOpen] = useState(false)
+
   return (
     <>
       <div className="sidebar">
@@ -38,6 +43,12 @@ export default function Sidebar({ view, onNavigateView, onScrollTo }: Props) {
           <div className="sidebar-divider" />
 
           <button
+            className={`sidebar-item${assistantOpen ? ' active' : ''}`}
+            onClick={() => setAssistantOpen((o) => !o)}
+          >
+            <FiMessageCircle /> Assistant
+          </button>
+          <button
             className={`sidebar-item${view === 'plans' ? ' active' : ''}`}
             onClick={() => onNavigateView('plans')}
           >
@@ -61,7 +72,16 @@ export default function Sidebar({ view, onNavigateView, onScrollTo }: Props) {
         </div>
       </div>
 
-      <MobileNav view={view} onNavigateView={onNavigateView} onScrollTo={onScrollTo} />
+      <MobileNav
+        view={view}
+        assistantOpen={assistantOpen}
+        onNavigateView={onNavigateView}
+        onScrollTo={onScrollTo}
+        onToggleAssistant={() => setAssistantOpen((o) => !o)}
+        onCloseAssistant={() => setAssistantOpen(false)}
+      />
+
+      <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </>
   )
 }

@@ -1,15 +1,25 @@
 import { useEffect, useState } from 'react'
-import { FiHome, FiCalendar, FiMonitor, FiGrid, FiX } from 'react-icons/fi'
+import { FiHome, FiCalendar, FiMonitor, FiGrid, FiX, FiMessageCircle } from 'react-icons/fi'
 import { SECTION_ITEMS, type ViewName } from './navItems'
 import './mobileNav.css'
 
 interface Props {
   view: ViewName
+  assistantOpen: boolean
   onNavigateView: (view: ViewName) => void
   onScrollTo: (sectionId: string) => void
+  onToggleAssistant: () => void
+  onCloseAssistant: () => void
 }
 
-export default function MobileNav({ view, onNavigateView, onScrollTo }: Props) {
+export default function MobileNav({
+  view,
+  assistantOpen,
+  onNavigateView,
+  onScrollTo,
+  onToggleAssistant,
+  onCloseAssistant,
+}: Props) {
   const [sheetOpen, setSheetOpen] = useState(false)
 
   useEffect(() => {
@@ -23,16 +33,22 @@ export default function MobileNav({ view, onNavigateView, onScrollTo }: Props) {
 
   function go(v: ViewName) {
     setSheetOpen(false)
+    onCloseAssistant()
     onNavigateView(v)
     window.scrollTo({ top: 0 })
   }
 
   function openSection(id: string) {
     setSheetOpen(false)
+    onCloseAssistant()
     if (view !== 'dashboard') onNavigateView('dashboard')
     // wait a tick so the dashboard is mounted before scrolling
     setTimeout(() => onScrollTo(id), 60)
   }
+
+  const homeActive = view === 'dashboard' && !assistantOpen
+  const plansActive = view === 'plans' && !assistantOpen
+  const devicesActive = view === 'devices' && !assistantOpen
 
   return (
     <>
@@ -58,19 +74,35 @@ export default function MobileNav({ view, onNavigateView, onScrollTo }: Props) {
       )}
 
       <nav className="mnav-bar" aria-label="Main navigation">
-        <button className={`mnav-tab${view === 'dashboard' ? ' active' : ''}`} onClick={() => go('dashboard')}>
+        <button className={`mnav-tab${homeActive ? ' active' : ''}`} onClick={() => go('dashboard')}>
           <FiHome />
           <span>Home</span>
         </button>
-        <button className={`mnav-tab${view === 'plans' ? ' active' : ''}`} onClick={() => go('plans')}>
+        <button className={`mnav-tab${plansActive ? ' active' : ''}`} onClick={() => go('plans')}>
           <FiCalendar />
           <span>Plans</span>
         </button>
-        <button className={`mnav-tab${view === 'devices' ? ' active' : ''}`} onClick={() => go('devices')}>
+        <button
+          className={`mnav-tab${assistantOpen ? ' active' : ''}`}
+          onClick={() => {
+            setSheetOpen(false)
+            onToggleAssistant()
+          }}
+        >
+          <FiMessageCircle />
+          <span>Assistant</span>
+        </button>
+        <button className={`mnav-tab${devicesActive ? ' active' : ''}`} onClick={() => go('devices')}>
           <FiMonitor />
           <span>Devices</span>
         </button>
-        <button className={`mnav-tab${sheetOpen ? ' active' : ''}`} onClick={() => setSheetOpen((o) => !o)}>
+        <button
+          className={`mnav-tab${sheetOpen ? ' active' : ''}`}
+          onClick={() => {
+            onCloseAssistant()
+            setSheetOpen((o) => !o)
+          }}
+        >
           <FiGrid />
           <span>Sections</span>
         </button>
