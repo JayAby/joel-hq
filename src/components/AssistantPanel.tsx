@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
-import { FiSend, FiStar, FiX } from 'react-icons/fi'
+import { FiCheck, FiSend, FiStar, FiX } from 'react-icons/fi'
 import { db } from '../firebase'
-import { approveProposal, askAssistant, rejectProposal, undoActivity } from '../assistantApi'
+import { approveProposal, askAssistant, quickAction, rejectProposal, undoActivity } from '../assistantApi'
 import './assistant.css'
 
 interface ChatMessage {
@@ -13,6 +13,14 @@ interface ChatMessage {
   proposalId?: string
   summary?: string[]
   warnings?: string[]
+  quick?: { id: string; label: string; done?: boolean }[]
+}
+
+/** Start of today's logical day (the app resets at 06:00). The chat only shows today. */
+function todayStart(): number {
+  const d = new Date(Date.now() - 6 * 3600_000)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime() + 6 * 3600_000
 }
 
 interface ProposalDoc {
@@ -107,6 +115,8 @@ export default function AssistantPanel({ open, onClose }: Props) {
 
   if (!open) return null
 
+  const shown = messages.filter((m) => m.at >= todayStart())
+
   async function send() {
     const text = input.trim()
     if (!text || sending) return
@@ -154,7 +164,7 @@ export default function AssistantPanel({ open, onClose }: Props) {
 
     return (
       <div className="asst-card" key={`${m.id}-card`}>
-        <div className="asst-card-label">{status === 'pending' ? "Here's what I'll do" : 'Proposed changes'}</div>
+        <div className="asst-card-label">{status === 'pending' ? "Here's what I'll do" : status === 'approved' ? 'Done' : 'Proposed changes'}</div>
         <ul>
           {(m.summary ?? []).map((line, i) => (
             <li key={i}>{line}</li>
@@ -212,7 +222,7 @@ export default function AssistantPanel({ open, onClose }: Props) {
       </div>
 
       <div className="asst-log" ref={logRef}>
-        {messages.length === 0 && !outgoing && (
+        {shown.length === 0 && !outgoing && (
           <div className="asst-empty">
             <strong>Tell me what's happening.</strong>
             <br />
@@ -220,10 +230,28 @@ export default function AssistantPanel({ open, onClose }: Props) {
           </div>
         )}
 
-        {messages.map((m) => (
+        {shown.map((m) => (
           <div key={m.id} style={{ display: 'contents' }}>
             <div className={`asst-msg ${m.role === 'user' ? 'me' : 'bot'}`}>{m.text}</div>
             {m.role === 'assistant' && m.proposalId && proposals[m.proposalId] ? renderCard(m) : null}
+            {m.quick && m.quick.length > 0 && (
+              <div className="asst-chips">
+                {m.quick.map((q) => {
+                  const key = `${m.id}:${q.id}`
+                  return (
+                    <button
+                      key={q.id}
+                      className={`asst-chip${q.done ? ' done' : ''}`}
+                      disabled={!!q.done || !!busyIds[key]}
+                      onClick={() => act(key, () => quickAction(m.id, q.id))}
+                    >
+                      {q.done && <FiCheck size={14} />}
+                      {q.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         ))}
 

@@ -37,3 +37,4 @@ export const askAssistant = (message: string) => call<AskResult>('/ask', { messa
 export const approveProposal = (id: string) => call<{ activityId: string; applied: string[]; error?: string }>('/approve', { id })
 export const rejectProposal = (id: string) => call<{ rejected: boolean }>('/reject', { id })
 export const undoActivity = (id: string) => call<{ undone: boolean }>('/undo', { id })
+export const quickAction = (messageId: string, quickId: string) => call<{ applied: string[] }>('/quick', { messageId, quickId })

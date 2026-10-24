@@ -1,8 +1,10 @@
-import { approve, handleMessage, HttpError, reject, saveExchange, undo } from './assistant'
+import { approve, handleMessage, HttpError, quickAction, reject, saveExchange, undo } from './assistant'
 import { verifyFirebaseIdToken } from './auth'
 import { makeRunAi, type AiEnv } from './ai'
 import { Firestore, parseServiceAccount, type Db } from './firestore'
 import { londonDateKey, londonMondayOf, londonResetDayKey, londonTime } from './london'
+import { autoTidy } from './housekeeping'
+import { runProactive, type Force } from './proactive'
 
 interface Env extends AiEnv {
   /** Whole service-account JSON, stored with `wrangler secret put`. */
@@ -85,18 +87,30 @@ export default {
     return res
   },
 
-  // Every 5 minutes. For now it only records a heartbeat. Briefings and
-  // reminders arrive in the next phase.
+  // Every 5 minutes: record a heartbeat, then send anything that is due
+  // (morning briefing, reminders, evening check-in) into the in-app chat.
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
     const now = new Date()
+    const d = db(env)
     try {
-      await db(env).update('assistant/heartbeat', [
+      await d.update('assistant/heartbeat', [
         { path: ['lastTickIso'], value: now.toISOString() },
         { path: ['londonDate'], value: londonDateKey(now) },
         { path: ['londonTime'], value: londonTime(now) },
       ])
     } catch (e) {
       console.error('heartbeat failed', e)
+    }
+    try {
+      const did = await runProactive(d, now)
+      if (did.length) console.log('proactive sent', did.join(','))
+    } catch (e) {
+      console.error('proactive failed', e)
+    }
+    try {
+      await autoTidy(d, now)
+    } catch (e) {
+      console.error('tidy failed', e)
     }
   },
 }
@@ -128,6 +142,7 @@ async function route(req: Request, env: Env): Promise<Response> {
         stateFound: state !== null,
         stateFieldNames: state ? Object.keys(state.data) : [],
         heartbeat: heartbeat?.data ?? null,
+        schedule: (await d.getDoc('assistant/schedule'))?.data ?? null,
       })
     }
 
@@ -137,8 +152,23 @@ async function route(req: Request, env: Env): Promise<Response> {
         if (typeof b.message !== 'string') return json({ error: 'message is required' }, 400)
         const d = db(env)
         const result = await handleMessage(d, makeRunAi(env), b.message, now)
+        // Low-risk, clean proposals are applied straight away. Joel can undo them.
+        if (result.proposalId && result.auto) {
+          const done = await approve(d, result.proposalId, now)
+          result.reply = done.error ? `Part of that did not work: ${done.error}` : 'Done.'
+        }
         await saveExchange(d, b.message, result, now)
         return json(result)
+      }
+      if (url.pathname === '/quick') {
+        if (typeof b.messageId !== 'string' || typeof b.quickId !== 'string') return json({ error: 'messageId and quickId are required' }, 400)
+        return json(await quickAction(db(env), b.messageId, b.quickId, now))
+      }
+      if (url.pathname === '/tick') {
+        // Test helper: { "force": "morning" | "evening" | "reminder" } sends that message now.
+        const f = b.force
+        const force: Force | undefined = f === 'morning' || f === 'evening' || f === 'reminder' ? f : undefined
+        return json({ sent: await runProactive(db(env), now, force) })
       }
       if (url.pathname === '/approve') {
         if (typeof b.id !== 'string') return json({ error: 'id is required' }, 400)

@@ -21,6 +21,8 @@ export class HttpError extends Error {
 export interface AskResult {
   reply: string
   proposalId?: string
+  /** True when every action is low-risk and clean, so it can be applied now (Joel can undo). */
+  auto?: boolean
   summary: string[]
   warnings: string[]
 }
@@ -78,6 +80,7 @@ async function saveProposal(
 ): Promise<AskResult> {
   const summary = actions.map(describe)
   if (actions.length === 0) return { reply, summary, warnings }
+  const auto = warnings.length === 0 && actions.length <= 3
   const id = crypto.randomUUID()
   await db.set(`proposals/${id}`, {
     id,
@@ -89,13 +92,17 @@ async function saveProposal(
     summary,
     warnings,
   })
-  return { reply, proposalId: id, summary, warnings }
+  return { reply, proposalId: id, auto, summary, warnings }
 }
 
 export async function handleMessage(db: Db, runAi: RunAi, rawText: string, now: Date): Promise<AskResult> {
   let text = rawText.trim()
   if (!text) return { reply: 'Say something and I will help.', summary: [], warnings: [] }
   if (text.length > MAX_MESSAGE) text = text.slice(0, MAX_MESSAGE)
+
+  // 0. Settings: "set shift 6", "set wake 07:30", "set bed 23:00". No AI.
+  const set = await handleSet(db, text)
+  if (set) return set
 
   // 1. Manual commands: no AI, so nothing leaves HQ.
   const manual = parseManual(text, now)
@@ -129,6 +136,28 @@ export async function handleMessage(db: Db, runAi: RunAi, rawText: string, now: 
   // 4. Validate, then park as a proposal.
   const { actions, warnings } = validateActions(parsed.actions, index as ResolveIndex, now)
   return saveProposal(db, now, text, parsed.reply, actions, warnings)
+}
+
+async function handleSet(db: Db, text: string): Promise<AskResult | null> {
+  const m = text.match(/^set\s+(shift|wake|bed)\s+(.+)$/i)
+  if (!m) return null
+  const what = m[1].toLowerCase()
+  const value = m[2].trim()
+  const bad = (msg: string): AskResult => ({ reply: msg, summary: [], warnings: [] })
+  if (what === 'shift') {
+    const hours = Number(value.replace(/\s*(hours?|hrs?|h)$/i, ''))
+    if (!Number.isFinite(hours) || hours < 1 || hours > 14) return bad('Tell me the shift length in hours, like "set shift 6".')
+    await db.update('assistant/profile', [{ path: ['workHours'], value: hours }])
+    return { reply: `Got it. I will plan around ${hours}-hour work shifts.`, summary: [], warnings: [] }
+  }
+  const t = parseTime(value)
+  if (!t) return bad(`I did not understand that time. Try "set ${what} ${what === 'wake' ? '07:30' : '23:00'}".`)
+  await db.update('assistant/profile', [{ path: [what], value: t }])
+  return {
+    reply: what === 'wake' ? `Got it. I will not suggest anything before ${t}.` : `Got it. I will not suggest anything after ${t}.`,
+    summary: [],
+    warnings: [],
+  }
 }
 
 /** Keeps the conversation so the in-app chat (and later Telegram) can show it. */
@@ -215,4 +244,58 @@ export async function undo(db: Db, activityId: string, now: Date) {
     { path: ['undoneAt'], value: now.getTime() },
   ])
   return { undone: true, steps: steps.length }
+}
+
+// ---- one-tap buttons on assistant messages ---------------------------------
+
+export interface QuickItem {
+  id: string
+  label: string
+  kind: 'habit' | 'all_habits' | 'task'
+  date: string
+  habitId?: string
+  habitName?: string
+  habits?: { id: string; name: string }[]
+  text?: string
+  time?: string
+  done?: boolean
+}
+
+/** Applies one button on a message. Safe to tap twice: a done button does nothing. */
+export async function quickAction(db: Db, messageId: string, quickId: string, now: Date) {
+  const msg = await db.getDoc(`messages/${messageId}`)
+  if (!msg) throw new HttpError(404, 'Message not found')
+  const items = (Array.isArray(msg.data.quick) ? msg.data.quick : []) as QuickItem[]
+  const item = items.find((q) => q.id === quickId)
+  if (!item) throw new HttpError(404, 'Button not found')
+  if (item.done) return { applied: [] as string[] }
+
+  const actions: Action[] = []
+  if (item.kind === 'habit' && item.habitId && item.habitName) {
+    actions.push({ type: 'mark_habit_done', habit: item.habitName, habitId: item.habitId, date: item.date })
+  } else if (item.kind === 'all_habits') {
+    for (const h of item.habits ?? []) actions.push({ type: 'mark_habit_done', habit: h.name, habitId: h.id, date: item.date })
+  } else if (item.kind === 'task' && item.text) {
+    const a: Action = { type: 'add_task', text: item.text.slice(0, 200), date: item.date }
+    if (item.time) a.time = item.time
+    actions.push(a)
+  }
+  if (actions.length === 0) throw new HttpError(400, 'Nothing to do for this button')
+
+  const undo: UndoStep[] = []
+  const applied: string[] = []
+  for (const a of actions) {
+    undo.push(await applyAction(db, a, now))
+    applied.push(describe(a))
+  }
+  const activityId = crypto.randomUUID()
+  await db.set(`activityLog/${activityId}`, { id: activityId, messageId, at: now.getTime(), applied, undo, undone: false })
+
+  // Mark the tapped button (and, for "all", every habit button) as done.
+  const doneIds = new Set([item.id])
+  if (item.kind === 'all_habits') for (const q of items) if (q.kind === 'habit') doneIds.add(q.id)
+  await db.update(`messages/${messageId}`, [
+    { path: ['quick'], value: items.map((q) => (doneIds.has(q.id) ? { ...q, done: true } : q)) },
+  ])
+  return { applied, activityId }
 }

@@ -35,7 +35,7 @@ export function buildSystemPrompt(ctx: AiContext): string {
   return `You are Joel's personal assistant inside his dashboard, "Joel HQ". Be brief, warm and practical.
 Today is ${ctx.todayWeekday} ${ctx.today} (Europe/London).
 
-You can only propose these actions. Joel approves them before anything happens:
+You can only do these actions. Simple ones are applied straight away and Joel can undo them:
 - add_task: {"type":"add_task","text":"...","date":"today|tomorrow|monday..sunday|YYYY-MM-DD","time":"HH:MM (optional)"}
 - log_progress: {"type":"log_progress","project":"project name","summary":"what Joel did","remaining":"what is left (optional)","blocker":"(optional)","next":"next step (optional)"}
 - mark_habit_done: {"type":"mark_habit_done","habit":"habit name","date":"today|yesterday|YYYY-MM-DD"}

@@ -52,3 +52,10 @@
 .asst-send { width: 44px; height: 44px; flex-shrink: 0; border: 0; border-radius: 50%; background: #5b4bdb; color: #ffffff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .asst-send:disabled { opacity: 0.5; cursor: default; }
 .asst-hint { font-size: 11px; color: var(--muted, #9aa3b8); padding: 0 16px 8px; line-height: 1.4; }
+
+/* One-tap buttons under a message */
+.asst-chips { display: flex; flex-wrap: wrap; gap: 8px; align-self: flex-start; max-width: 92%; }
+.asst-chip { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line, #2f3650); background: var(--surface-2, #1a1f2b); color: var(--text, #e9ecf5); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.asst-chip:hover:not(:disabled) { background: #232938; }
+.asst-chip.done { background: #16352b; border-color: #16352b; color: #4ade9b; cursor: default; }
+.asst-chip:disabled:not(.done) { opacity: .6; }

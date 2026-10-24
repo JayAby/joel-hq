@@ -1,13 +1,13 @@
 {
   "name": "joel-hq-assistant",
-  "version": "0.3.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test": "tsx test/smoke.ts && tsx test/bot.ts"
+    "test": "tsx test/smoke.ts && tsx test/auth.ts && tsx test/proactive.ts && tsx test/housekeeping.ts && tsx test/v2.ts"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261006.1",
