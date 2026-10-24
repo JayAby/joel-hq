@@ -258,6 +258,7 @@ export interface QuickItem {
   habits?: { id: string; name: string }[]
   text?: string
   time?: string
+  minutes?: number
   done?: boolean
 }
 
@@ -278,6 +279,7 @@ export async function quickAction(db: Db, messageId: string, quickId: string, no
   } else if (item.kind === 'task' && item.text) {
     const a: Action = { type: 'add_task', text: item.text.slice(0, 200), date: item.date }
     if (item.time) a.time = item.time
+    if (item.minutes) a.minutes = item.minutes
     actions.push(a)
   }
   if (actions.length === 0) throw new HttpError(400, 'Nothing to do for this button')

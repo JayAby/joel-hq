@@ -8,7 +8,7 @@ import { londonResetDayKey } from './london'
 import { parseTime, resolveDate } from './dates'
 
 export type Action =
-  | { type: 'add_task'; text: string; date: string; time?: string }
+  | { type: 'add_task'; text: string; date: string; time?: string; minutes?: number }
   | {
       type: 'log_progress'
       project: string
@@ -200,6 +200,7 @@ export async function applyAction(db: Db, a: Action, now: Date): Promise<UndoSte
         createdAt: now.getTime(),
       }
       if (a.time) task.time = a.time
+      if (a.minutes) task.minutes = a.minutes
       await modifyState(db, (d) => [{ path: ['tasks'], value: [...arr(d.tasks), task] }])
       return { kind: 'remove_task', taskId: task.id as string }
     }

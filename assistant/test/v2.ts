@@ -33,6 +33,10 @@ async function main() {
     'Coding Practice - Learning@12:00-13:30',
   ]) // skincare is never blocked, and nothing overlaps work
 
+  // a task's own length wins over the default
+  const own = busyBlocks([{ t: 'MSc Study', time: '10:00', minutes: 90 }, { t: 'Work', time: '14:00', minutes: 300 }], DEFAULT_PROFILE)
+  assert.deepEqual(own.map((b) => `${toHHMM(b.start)}-${toHHMM(b.end)}`), ['10:00-11:30', '14:00-19:00'])
+
   // a profile changes the plan
   const db0 = new FakeDb()
   const r = await handleMessage(db0, async () => '{}', 'set shift 5', now)
@@ -85,7 +89,10 @@ async function main() {
   await quickAction(db2, morning.key.split('/')[1], 'q0', at('08:01'))
   const tasks = db2.docs.get('joelhq/state')!.data.tasks as { t: string; time?: string; date: string }[]
   assert.equal(tasks.length, 2)
-  assert.deepEqual({ t: tasks[1].t, time: tasks[1].time, date: tasks[1].date }, { t: 'MSc Study', time: '08:15–09:45', date: '2026-10-22' })
+  assert.deepEqual(
+    { t: tasks[1].t, time: tasks[1].time, date: tasks[1].date, minutes: (tasks[1] as { minutes?: number }).minutes },
+    { t: 'MSc Study', time: '08:15', date: '2026-10-22', minutes: 90 },
+  )
   assert.equal(msgs().find((x) => x.kind === 'morning')!.quick![0].done, true)
   // tapping again changes nothing
   await quickAction(db2, morning.key.split('/')[1], 'q0', at('08:02'))

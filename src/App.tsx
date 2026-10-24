@@ -7,7 +7,6 @@ import { resetDayKey, parseLocalDateKey } from './config'
 import { confirmDelete } from './confirm'
 import { exportData } from './exportData'
 import { generatePlanTasksForDate, activeHabits, habitWeekCount } from './plans'
-import WelcomeBanner from './components/WelcomeBanner'
 import Editable from './components/Editable'
 import ProgressBar from './components/ProgressBar'
 import SubtaskChecklist from './components/SubtaskChecklist'
@@ -27,7 +26,11 @@ import QuickAdd, { QuickAddDestination } from './components/QuickAdd'
 import ShoppingList from './components/ShoppingList'
 import WeeklyTodoList from './components/WeeklyTodoList'
 import Sidebar from './components/Sidebar'
-import HeroBanner from './components/HeroBanner'
+import TodayHome from './components/TodayHome'
+import SectionsPage from './components/SectionsPage'
+import { SECTION_ITEMS, type ViewName } from './components/navItems'
+import { useAssistantProfile } from './hooks/useAssistantProfile'
+import { parseSpan, toMinutes as spanToMinutes } from './dayPlanner'
 import { useDevices } from './hooks/useDevices'
 import { useMyDevice } from './hooks/useMyDevice'
 import { useHistory } from './hooks/useHistory'
@@ -45,9 +48,10 @@ function useClock() {
   return now
 }
 
-function toMinutes(hhmm: string): number {
-  const [h, m] = hhmm.split(':').map(Number)
-  return h * 60 + (m || 0)
+function toMinutes(time: string): number {
+  // Accepts "17:00" and ranges like "09:00–11:00" (uses the start).
+  const span = parseSpan(time)
+  return span ? span.start : spanToMinutes(time)
 }
 
 function getCurrentAndNext(tasks: Task[], now: Date, today: string) {
@@ -89,7 +93,9 @@ export default function App() {
   const { plans, ready: plansReady, addPlan, updatePlan, removePlan } = usePlans()
   const { weeks: habitWeeks, recordWeek } = useHabitWeeks()
   const { weeks: weeklyTodoWeeks, recordWeek: recordTodoWeek } = useWeeklyTodoWeeks()
-  const [view, setView] = useState<'dashboard' | 'devices' | 'plans'>('dashboard')
+  const [view, setView] = useState<ViewName>('dashboard')
+  const [openSection, setOpenSection] = useState<string | null>(null)
+  const profile = useAssistantProfile()
   const [openDeviceId, setOpenDeviceId] = useState<string | null>(null)
   const [focusLogOpen, setFocusLogOpen] = useState(false)
   const now = useClock()
@@ -106,8 +112,16 @@ export default function App() {
     setNotifPerm(perm)
   }
 
-  function scrollToSection(id: string) {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  function navigate(next: ViewName) {
+    setView(next)
+    setOpenSection(null)
+    window.scrollTo({ top: 0 })
+  }
+
+  function openSectionById(id: string) {
+    setOpenSection(id)
+    setView('sections')
+    window.scrollTo({ top: 0 })
   }
 
   useEffect(() => {
@@ -133,7 +147,7 @@ export default function App() {
     const current = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
     state.tasks.forEach((t) => {
       if (!t.time || t.done) return
-      if (t.time === current && !notifiedRef.current.has(t.id)) {
+      if (t.time.slice(0, 5) === current && !notifiedRef.current.has(t.id)) {
         notifiedRef.current.add(t.id)
         notify(`⏰ ${t.t}`, `Scheduled for ${t.time}`)
       }
@@ -316,14 +330,14 @@ export default function App() {
   if (view === 'devices') {
     return (
       <div className="app-shell">
-        <Sidebar view={view} onNavigateView={setView} onScrollTo={scrollToSection} />
+        <Sidebar view={view} onNavigateView={navigate} />
         <div className="app-main">
           <DevicesPage
             devices={devices}
             now={now.getTime()}
             myDeviceId={myDeviceId}
             initialOpenId={openDeviceId}
-            onBack={() => setView('dashboard')}
+            onBack={() => navigate('dashboard')}
             onAddDevice={addDevice}
             onUpdateDevice={updateDevice}
             onRemoveDevice={removeDevice}
@@ -338,12 +352,12 @@ export default function App() {
   if (view === 'plans') {
     return (
       <div className="app-shell">
-        <Sidebar view={view} onNavigateView={setView} onScrollTo={scrollToSection} />
+        <Sidebar view={view} onNavigateView={navigate} />
         <div className="app-main">
           <PlansPage
             plans={plans}
             now={now}
-            onBack={() => setView('dashboard')}
+            onBack={() => navigate('dashboard')}
             onAdd={addPlan}
             onUpdate={updatePlan}
             onRemove={removePlan}
@@ -358,69 +372,223 @@ export default function App() {
     update((p) => ({ ...p, [destination]: [...p[destination], task] }))
   }
 
-  return (
-    <div className="app-shell">
-      <Sidebar view={view} onNavigateView={setView} onScrollTo={scrollToSection} />
-      <div className="app-main">
-        <div className="page">
-          <div className="topbar-slim">
-            <div className="topbar-slim-left">
-              <span className={`dot${synced && ready ? '' : ' off'}`} />
-              {synced ? (ready ? 'synced' : 'connecting…') : 'local only'}
-              {notifPerm !== 'granted' && (
-                <button className="card-link" onClick={enableNotifications}>
-                  🔔 enable notifications
-                </button>
-              )}
-              <button className="card-link" onClick={() => exportData(state, devices, historyEntries)}>
-                ⬇ export my data
+  function toggleTask(id: string) {
+    update((p) => ({
+      ...p,
+      tasks: p.tasks.map((t) => (t.id === id ? { ...t, done: !t.done, skipped: false } : t)),
+    }))
+  }
+
+  function addHomeTask(task: Task) {
+    update((p) => ({ ...p, tasks: [...p.tasks, task] }))
+  }
+
+  const todayKey = resetDayKey(now)
+  const openTasks = state.tasks.filter((t) => !t.done && !t.skipped && (!t.date || t.date <= todayKey))
+  const doneTasks = state.tasks.filter((t) => t.done && (!t.date || t.date <= todayKey))
+  const doneHabitCount = habits.filter((h) => (state.habitLog[h.id] ?? []).includes(todayKey)).length
+  const weeklyDone = state.weeklyTodos.filter((t) => t.done).length
+
+  // One line under each row of the Sections page. Finance never shows a number.
+  const summaries: Record<string, string> = {
+    today: `${openTasks.length} open, ${doneTasks.length} done`,
+    habits: habits.length ? `${doneHabitCount} of ${habits.length} done today` : 'No habits yet',
+    fitness: state.fitness.weight ? `Weight ${state.fitness.weight}` : '',
+    projects: state.projects.slice(0, 2).map((t) => t.t).join(', '),
+    career: `${state.career.length} item${state.career.length === 1 ? '' : 's'}`,
+    shopping: `${state.shoppingItems.filter((i) => !i.done).length} to get`,
+    weekly: state.weeklyTodos.length ? `${weeklyDone} of ${state.weeklyTodos.length} done` : 'Nothing set',
+    goals: `${state.goals.length} goal${state.goals.length === 1 ? '' : 's'}`,
+    finance: 'Private. Never shared with the assistant.',
+    notes: `${state.notes.length} note${state.notes.length === 1 ? '' : 's'}`,
+    focus: currentTask ? currentTask.t : 'Nothing scheduled',
+    streaks: 'Your runs of good days',
+    pomodoro: 'Focus timer',
+    music: 'Now playing',
+    links: `${state.links.length} link${state.links.length === 1 ? '' : 's'}`,
+  }
+
+  function renderSection(id: string) {
+    switch (id) {
+      case 'today':
+        return (
+          <div className="card accent-mint span-12">
+            <div className="card-head">
+              <div className="card-title">
+                <span className="card-icon-badge badge-mint">🎯</span> Today
+              </div>
+              <button
+                className="card-link"
+                onClick={() => update((p) => ({ ...p, tasks: p.tasks.map((t) => ({ ...t, done: false })) }))}
+              >
+                reset day
               </button>
             </div>
-            <div className="topbar-slim-right">
-              <div className="clock">
-                {String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}
-              </div>
-              <div className="date">
-                {now.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
-                {' · '}
-                {timezoneLabel(now)}
+            <TaskList
+              tasks={state.tasks}
+              onChange={(tasks) => update((p) => ({ ...p, tasks }))}
+              showTime
+              allowAdd
+              allowTimeInput
+              allowDateInput
+              today={todayKey}
+            />
+          </div>
+        )
+      case 'habits':
+        return (
+          <HabitsWidget
+            habits={habits}
+            habitLog={state.habitLog}
+            now={now}
+            onToggleToday={toggleHabitToday}
+            onAddHabit={(name, target) =>
+              addPlan({
+                name,
+                kind: 'habit',
+                startDate: resetDayKey(now),
+                recurrence: { frequency: 'weekly', daysOfWeek: [], endType: 'never' },
+                active: true,
+                habitTargetPerWeek: target,
+              })
+            }
+            onRemoveHabit={(hid) => removePlan(hid)}
+          />
+        )
+      case 'fitness':
+        return (
+          <div className="card accent-rose span-12">
+            <div className="card-head">
+              <div className="card-title">
+                <span className="card-icon-badge badge-rose">🏋🏾</span> Fitness
               </div>
             </div>
+            <FitnessWeightPanel fitness={state.fitness} onChange={(fitness) => update((p) => ({ ...p, fitness }))} />
           </div>
-
-          <HeroBanner name="Joel" now={now} />
-
-          {!state.hasOnboarded && (
-            <WelcomeBanner onDismiss={() => update((p) => ({ ...p, hasOnboarded: true }))} />
-          )}
-
-          <Editable className="quote" value={state.quote} onChange={(v) => update((p) => ({ ...p, quote: v }))} />
-
-          <div className="grid">
-            <div className="card accent-mint span-6" id="section-today">
-              <div className="card-head">
-                <div className="card-title">
-                  <span className="card-icon-badge badge-mint">🎯</span> Today
-                </div>
-                <button
-                  className="card-link"
-                  onClick={() => update((p) => ({ ...p, tasks: p.tasks.map((t) => ({ ...t, done: false })) }))}
-                >
-                  reset day
-                </button>
+        )
+      case 'projects':
+        return (
+          <div className="card accent-mint span-12">
+            <div className="card-head">
+              <div className="card-title">
+                <span className="card-icon-badge badge-mint">💻</span> Projects
               </div>
-              <TaskList
-                tasks={state.tasks}
-                onChange={(tasks) => update((p) => ({ ...p, tasks }))}
-                showTime
-                allowAdd
-                allowTimeInput
-                allowDateInput
-                today={resetDayKey(now)}
+            </div>
+            <TaskList tasks={state.projects} onChange={(projects) => update((p) => ({ ...p, projects }))} allowAdd />
+          </div>
+        )
+      case 'career':
+        return (
+          <div className="card accent-violet span-12">
+            <div className="card-head">
+              <div className="card-title">
+                <span className="card-icon-badge badge-violet">🎓</span> Career &amp; Education
+              </div>
+            </div>
+            <TaskList tasks={state.career} onChange={(career) => update((p) => ({ ...p, career }))} allowAdd />
+          </div>
+        )
+      case 'shopping':
+        return (
+          <ShoppingList items={state.shoppingItems} onChange={(shoppingItems) => update((p) => ({ ...p, shoppingItems }))} />
+        )
+      case 'weekly':
+        return (
+          <WeeklyTodoList
+            items={state.weeklyTodos}
+            onChange={(weeklyTodos) => update((p) => ({ ...p, weeklyTodos }))}
+            previousWeeks={weeklyTodoWeeks}
+          />
+        )
+      case 'goals':
+        return (
+          <div className="card accent-mint span-12">
+            <div className="card-head">
+              <div className="card-title">
+                <span className="card-icon-badge badge-mint">🎯</span> Goals
+              </div>
+            </div>
+            <TaskList tasks={state.goals} onChange={(goals) => update((p) => ({ ...p, goals }))} allowAdd />
+          </div>
+        )
+      case 'finance':
+        return (
+          <div className="card accent-mint span-12">
+            <div className="card-head">
+              <div className="card-title">
+                <span className="card-icon-badge badge-mint">💰</span> Finance
+              </div>
+            </div>
+            <Editable className="balance" value={state.balance} onChange={(v) => update((p) => ({ ...p, balance: v }))} />
+            <Editable
+              className="balance-delta"
+              value={state.balanceDelta}
+              onChange={(v) => update((p) => ({ ...p, balanceDelta: v }))}
+            />
+            <div style={{ marginTop: 16 }}>
+              <SwipeTabs
+                tabs={[
+                  {
+                    label: 'Debts',
+                    content: (
+                      <MoneyProgressList items={state.debts} onChange={(debts) => update((p) => ({ ...p, debts }))} />
+                    ),
+                  },
+                  {
+                    label: 'Savings',
+                    content: (
+                      <SavingsProgressList
+                        items={state.savings}
+                        onChange={(savings) => update((p) => ({ ...p, savings }))}
+                        barClass="violet"
+                      />
+                    ),
+                  },
+                ]}
               />
             </div>
-
-            <div className="card accent-amber span-6">
+          </div>
+        )
+      case 'notes':
+        return (
+          <div className="card accent-violet span-12">
+            <div className="card-head">
+              <div className="card-title">
+                <span className="card-icon-badge badge-violet">📝</span> Quick Notes
+              </div>
+              <button className="card-link" onClick={() => update((p) => ({ ...p, notes: [...p.notes, 'New note...'] }))}>
+                + new
+              </button>
+            </div>
+            {state.notes.map((n, i) => (
+              <div className="note-row" key={i}>
+                <div className="note-dot">•</div>
+                <Editable
+                  className="note-text"
+                  value={n}
+                  onChange={(v) => {
+                    const next = state.notes.slice()
+                    next[i] = v
+                    update((p) => ({ ...p, notes: next }))
+                  }}
+                />
+                <button
+                  className="del-btn"
+                  style={{ opacity: 0.5 }}
+                  onClick={() =>
+                    confirmDelete(`"${n}"`) && update((p) => ({ ...p, notes: p.notes.filter((_, idx) => idx !== i) }))
+                  }
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )
+      case 'focus':
+        return (
+          <>
+            <div className="card accent-amber span-12">
               <div className="card-head">
                 <div className="card-title">
                   <span className="card-icon-badge badge-amber">🔭</span> Current Focus
@@ -442,7 +610,6 @@ export default function App() {
                 }
               />
             </div>
-
             <div className="card accent-amber span-12">
               <div className="card-head">
                 <div className="card-title">
@@ -461,7 +628,7 @@ export default function App() {
                   tasks={state.tasks}
                   subtasksByTask={state.focusSubtasksByTask}
                   currentTaskId={currentTask?.id ?? null}
-                  today={resetDayKey(now)}
+                  today={todayKey}
                   onChangeSubtasks={(taskId, subtasks) =>
                     update((p) => ({
                       ...p,
@@ -471,172 +638,74 @@ export default function App() {
                 />
               )}
             </div>
-
-            <div className="card accent-mint span-4" id="section-projects">
-              <div className="card-head">
-                <div className="card-title">
-                  <span className="card-icon-badge badge-mint">💻</span> Projects
-                </div>
-              </div>
-              <TaskList tasks={state.projects} onChange={(projects) => update((p) => ({ ...p, projects }))} allowAdd />
-            </div>
-
-            <div className="card accent-violet span-4" id="section-career">
-              <div className="card-head">
-                <div className="card-title">
-                  <span className="card-icon-badge badge-violet">🎓</span> Career &amp; Education
-                </div>
-              </div>
-              <TaskList tasks={state.career} onChange={(career) => update((p) => ({ ...p, career }))} allowAdd />
-            </div>
-
-            <div className="card accent-mint span-4" id="section-finance">
-              <div className="card-head">
-                <div className="card-title">
-                  <span className="card-icon-badge badge-mint">💰</span> Finance
-                </div>
-              </div>
-              <Editable className="balance" value={state.balance} onChange={(v) => update((p) => ({ ...p, balance: v }))} />
-              <Editable
-                className="balance-delta"
-                value={state.balanceDelta}
-                onChange={(v) => update((p) => ({ ...p, balanceDelta: v }))}
-              />
-              <div style={{ marginTop: 16 }}>
-                <SwipeTabs
-                  tabs={[
-                    {
-                      label: 'Debts',
-                      content: (
-                        <MoneyProgressList items={state.debts} onChange={(debts) => update((p) => ({ ...p, debts }))} />
-                      ),
-                    },
-                    {
-                      label: 'Savings',
-                      content: (
-                        <SavingsProgressList
-                          items={state.savings}
-                          onChange={(savings) => update((p) => ({ ...p, savings }))}
-                          barClass="violet"
-                        />
-                      ),
-                    },
-                  ]}
-                />
+          </>
+        )
+      case 'streaks':
+        return (
+          <StreaksWidget
+            entries={historyEntries}
+            habits={habits}
+            habitLog={state.habitLog}
+            habitWeeks={habitWeeks}
+            now={now}
+          />
+        )
+      case 'pomodoro':
+        return <Pomodoro />
+      case 'music':
+        return <NowPlaying />
+      case 'links':
+        return (
+          <div className="card accent-violet span-12">
+            <div className="card-head">
+              <div className="card-title">
+                <span className="card-icon-badge badge-violet">🔗</span> Links
               </div>
             </div>
-
-            <div className="card accent-rose span-4" id="section-fitness">
-              <div className="card-head">
-                <div className="card-title">
-                  <span className="card-icon-badge badge-rose">🏋🏾</span> Fitness
-                </div>
-              </div>
-              <FitnessWeightPanel fitness={state.fitness} onChange={(fitness) => update((p) => ({ ...p, fitness }))} />
-            </div>
-
-            <div id="section-habits" style={{ display: 'contents' }}>
-              <HabitsWidget
-                habits={habits}
-                habitLog={state.habitLog}
-                now={now}
-                onToggleToday={toggleHabitToday}
-                onAddHabit={(name, target) =>
-                  addPlan({
-                    name,
-                    kind: 'habit',
-                    startDate: resetDayKey(now),
-                    recurrence: { frequency: 'weekly', daysOfWeek: [], endType: 'never' },
-                    active: true,
-                    habitTargetPerWeek: target,
-                  })
-                }
-                onRemoveHabit={(id) => removePlan(id)}
-              />
-            </div>
-
-            <div id="section-shopping" style={{ display: 'contents' }}>
-              <ShoppingList items={state.shoppingItems} onChange={(shoppingItems) => update((p) => ({ ...p, shoppingItems }))} />
-            </div>
-
-            <WeeklyTodoList
-              items={state.weeklyTodos}
-              onChange={(weeklyTodos) => update((p) => ({ ...p, weeklyTodos }))}
-              previousWeeks={weeklyTodoWeeks}
-            />
-
-            <div className="card accent-mint span-6" id="section-goals">
-              <div className="card-head">
-                <div className="card-title">
-                  <span className="card-icon-badge badge-mint">🎯</span> Goals
-                </div>
-              </div>
-              <TaskList tasks={state.goals} onChange={(goals) => update((p) => ({ ...p, goals }))} allowAdd />
-            </div>
-
-            <div className="card accent-violet span-6" id="section-notes">
-              <div className="card-head">
-                <div className="card-title">
-                  <span className="card-icon-badge badge-violet">📝</span> Quick Notes
-                </div>
-                <button className="card-link" onClick={() => update((p) => ({ ...p, notes: [...p.notes, 'New note...'] }))}>
-                  + new
-                </button>
-              </div>
-              {state.notes.map((n, i) => (
-                <div className="note-row" key={i}>
-                  <div className="note-dot">•</div>
-                  <Editable
-                    className="note-text"
-                    value={n}
-                    onChange={(v) => {
-                      const next = state.notes.slice()
-                      next[i] = v
-                      update((p) => ({ ...p, notes: next }))
-                    }}
-                  />
-                  <button
-                    className="del-btn"
-                    style={{ opacity: 0.5 }}
-                    onClick={() =>
-                      confirmDelete(`"${n}"`) &&
-                      update((p) => ({ ...p, notes: p.notes.filter((_, idx) => idx !== i) }))
-                    }
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <NowPlaying />
-            <div id="section-pomodoro" style={{ display: 'contents' }}>
-              <Pomodoro />
-            </div>
-            <StreaksWidget
-              entries={historyEntries}
-              habits={habits}
-              habitLog={state.habitLog}
-              habitWeeks={habitWeeks}
-              now={now}
-            />
-
-            <div className="card accent-violet span-4">
-              <div className="card-head">
-                <div className="card-title">
-                  <span className="card-icon-badge badge-violet">🔗</span> Links
-                </div>
-              </div>
-              <LinksList links={state.links} onChange={(links) => update((p) => ({ ...p, links }))} />
-            </div>
+            <LinksList links={state.links} onChange={(links) => update((p) => ({ ...p, links }))} />
           </div>
+        )
+      default:
+        return null
+    }
+  }
 
-          <div className="footer">
-            <span>better routines →</span>
-            <span>better habits →</span>
-            <span>bigger dreams</span>
-          </div>
-        </div>
+  // The assistant panel lives in the sidebar component; Home asks it to open with an event.
+  function openAssistant() {
+    window.dispatchEvent(new Event('joelhq:open-assistant'))
+  }
+
+  return (
+    <div className="app-shell">
+      <Sidebar view={view} onNavigateView={navigate} />
+      <div className="app-main">
+        {view === 'sections' ? (
+          <SectionsPage
+            openId={openSection}
+            summaries={summaries}
+            onOpen={openSectionById}
+            onBack={() => setOpenSection(null)}
+          >
+            {openSection && SECTION_ITEMS.some((s) => s.id === openSection) ? renderSection(openSection) : null}
+          </SectionsPage>
+        ) : (
+          <TodayHome
+            now={now}
+            tasks={state.tasks}
+            habits={habits}
+            habitLog={state.habitLog}
+            profile={profile}
+            synced={synced && ready}
+            notifPerm={notifPerm}
+            onToggleTask={toggleTask}
+            onToggleHabit={toggleHabitToday}
+            onAddTask={addHomeTask}
+            onOpenSection={openSectionById}
+            onOpenAssistant={openAssistant}
+            onEnableNotifications={enableNotifications}
+            onExport={() => exportData(state, devices, historyEntries)}
+          />
+        )}
 
         <QuickAdd
           onAddTask={addQuickTask}

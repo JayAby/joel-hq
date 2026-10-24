@@ -253,7 +253,8 @@ export async function runProactive(db: Db, now: Date, force?: Force): Promise<st
       kind: 'task',
       date: today,
       text: x.label,
-      time: `${clock(x.start)}–${clock(x.end)}`,
+      time: clock(x.start),
+      minutes: x.end - x.start,
     }))
     edits.push({ path: ['morningDay'], value: today })
     if (workShown) edits.push({ path: ['hintShown'], value: true })

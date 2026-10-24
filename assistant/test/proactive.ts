@@ -60,7 +60,7 @@ async function main() {
   const quick = (m[0] as unknown as { quick: { kind: string; time: string; label: string }[] }).quick
   assert.equal(quick.length, 1)
   assert.equal(quick[0].kind, 'task')
-  assert.equal(quick[0].time, '08:15–09:15')
+  assert.equal(quick[0].time, '08:15')
   assert.doesNotMatch(m[0].text, /1,234/) // finance never appears
 
   // reminder 10 minutes before, once only

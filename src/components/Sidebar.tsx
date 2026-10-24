@@ -1,18 +1,29 @@
-import { useState } from 'react'
-import { FiHome, FiCalendar, FiMonitor, FiMessageCircle } from 'react-icons/fi'
+import { useEffect, useState } from 'react'
+import { FiHome, FiGrid, FiCalendar, FiMonitor, FiMessageCircle } from 'react-icons/fi'
 import AssistantPanel from './AssistantPanel'
+import AssistantBanner from './AssistantBanner'
 import MobileNav from './MobileNav'
-import { SECTION_ITEMS, type ViewName } from './navItems'
+import { useAssistantAlerts } from '../hooks/useAssistantAlerts'
+import type { ViewName } from './navItems'
+import './home.css'
 
 interface Props {
   view: ViewName
   onNavigateView: (view: ViewName) => void
-  onScrollTo: (sectionId: string) => void
 }
 
-export default function Sidebar({ view, onNavigateView, onScrollTo }: Props) {
-  // The assistant lives here so it works on every page without touching App.tsx.
+export default function Sidebar({ view, onNavigateView }: Props) {
+  // The assistant lives here so it works on every page.
   const [assistantOpen, setAssistantOpen] = useState(false)
+  const { unread, toast, dismissToast } = useAssistantAlerts(assistantOpen)
+
+  useEffect(() => {
+    const open = () => setAssistantOpen(true)
+    window.addEventListener('joelhq:open-assistant', open)
+    return () => window.removeEventListener('joelhq:open-assistant', open)
+  }, [])
+
+  const item = (v: ViewName) => `sidebar-item${view === v ? ' active' : ''}`
 
   return (
     <>
@@ -26,19 +37,12 @@ export default function Sidebar({ view, onNavigateView, onScrollTo }: Props) {
         </div>
 
         <nav className="sidebar-nav">
-          <button
-            className={`sidebar-item${view === 'dashboard' ? ' active' : ''}`}
-            onClick={() => onNavigateView('dashboard')}
-          >
-            <FiHome /> Home
+          <button className={item('dashboard')} onClick={() => onNavigateView('dashboard')}>
+            <FiHome /> Today
           </button>
-
-          {view === 'dashboard' &&
-            SECTION_ITEMS.map((item) => (
-              <button key={item.id} className="sidebar-item" onClick={() => onScrollTo(item.id)}>
-                <item.icon /> {item.label}
-              </button>
-            ))}
+          <button className={item('sections')} onClick={() => onNavigateView('sections')}>
+            <FiGrid /> Sections
+          </button>
 
           <div className="sidebar-divider" />
 
@@ -47,17 +51,12 @@ export default function Sidebar({ view, onNavigateView, onScrollTo }: Props) {
             onClick={() => setAssistantOpen((o) => !o)}
           >
             <FiMessageCircle /> Assistant
+            {unread > 0 && !assistantOpen && <span className="sidebar-badge">{unread > 9 ? '9+' : unread}</span>}
           </button>
-          <button
-            className={`sidebar-item${view === 'plans' ? ' active' : ''}`}
-            onClick={() => onNavigateView('plans')}
-          >
+          <button className={item('plans')} onClick={() => onNavigateView('plans')}>
             <FiCalendar /> Plans
           </button>
-          <button
-            className={`sidebar-item${view === 'devices' ? ' active' : ''}`}
-            onClick={() => onNavigateView('devices')}
-          >
+          <button className={item('devices')} onClick={() => onNavigateView('devices')}>
             <FiMonitor /> Devices
           </button>
         </nav>
@@ -75,12 +74,13 @@ export default function Sidebar({ view, onNavigateView, onScrollTo }: Props) {
       <MobileNav
         view={view}
         assistantOpen={assistantOpen}
+        unread={unread}
         onNavigateView={onNavigateView}
-        onScrollTo={onScrollTo}
         onToggleAssistant={() => setAssistantOpen((o) => !o)}
         onCloseAssistant={() => setAssistantOpen(false)}
       />
 
+      <AssistantBanner message={assistantOpen ? null : toast} onOpen={() => setAssistantOpen(true)} onDismiss={dismissToast} />
       <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </>
   )

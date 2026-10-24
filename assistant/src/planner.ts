@@ -62,13 +62,14 @@ export function parseSpan(time: unknown): { start: number; end: number | null } 
 
 const isWork = (text: string) => /^\s*(work|shift)\b/i.test(text)
 
-export function busyBlocks(tasks: { t?: string; time?: string }[], profile: Profile): Block[] {
+export function busyBlocks(tasks: { t?: string; time?: string; minutes?: number }[], profile: Profile): Block[] {
   const out: Block[] = []
   for (const t of tasks) {
     const span = parseSpan(t.time)
     if (!span) continue
     const text = String(t.t ?? '')
-    const length = isWork(text) ? profile.workHours * 60 : 60
+    const own = Number(t.minutes)
+    const length = Number.isFinite(own) && own >= 5 && own <= 1440 ? own : isWork(text) ? profile.workHours * 60 : 60
     const end = Math.min(1440, span.end !== null && span.end > span.start ? span.end : span.start + length)
     out.push({ start: span.start, end, label: text })
   }

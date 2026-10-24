@@ -8,6 +8,8 @@ export interface Task {
   skipped?: boolean
   planId?: string
   date?: string
+  /** How long it takes, when known (set when the assistant plans a block of time). */
+  minutes?: number
   createdAt?: number
 }
 
