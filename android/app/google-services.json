@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1027338908669",
+    "project_id": "joel-hq-d27b5",
+    "storage_bucket": "joel-hq-d27b5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1027338908669:android:2989602ddf396d09955f94",
+        "android_client_info": {
+          "package_name": "com.joel.hq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCspi5hEIizwTK84PCQyeCPmgDxZkoVPIo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

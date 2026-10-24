@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSyncedState } from './hooks/useSyncedState'
 import { handleSpotifyRedirect } from './spotify'
 import { notificationPermission, requestNotificationPermission, notify } from './notifications'
+import { enablePush, pushAvailable, startPush } from './push'
 import { mondayOf, Task, UNSCHEDULED_KEY, HistoryEntry } from './types'
 import { resetDayKey, parseLocalDateKey } from './config'
 import { confirmDelete } from './confirm'
@@ -107,7 +108,20 @@ export default function App() {
     handleSpotifyRedirect()
   }, [])
 
+  // Android app: if alerts were already allowed, refresh this phone's push token.
+  useEffect(() => {
+    if (!pushAvailable()) return
+    void startPush()
+      .then((status) => setNotifPerm(status === 'granted' ? 'granted' : 'default'))
+      .catch(() => {})
+  }, [])
+
   async function enableNotifications() {
+    if (pushAvailable()) {
+      const status = await enablePush().catch(() => 'denied' as const)
+      setNotifPerm(status === 'granted' ? 'granted' : 'denied')
+      return
+    }
     const perm = await requestNotificationPermission()
     setNotifPerm(perm)
   }
