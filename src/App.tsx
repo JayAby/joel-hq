@@ -18,6 +18,7 @@ import { FitnessWeightPanel } from './components/FitnessWeek'
 import TaskList from './components/TaskList'
 import NowPlaying from './components/NowPlaying'
 import Pomodoro from './components/Pomodoro'
+import FocusTimer from './components/FocusTimer'
 import LinksList from './components/LinksList'
 import SwipeTabs from './components/SwipeTabs'
 import DevicesPage from './components/DevicesPage'
@@ -723,6 +724,8 @@ export default function App() {
             onExport={() => exportData(state, devices, historyEntries)}
           />
         )}
+
+        <FocusTimer tasks={state.tasks} onToggleTask={toggleTask} />
 
         <QuickAdd
           onAddTask={addQuickTask}

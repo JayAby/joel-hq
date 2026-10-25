@@ -13,7 +13,7 @@ interface ChatMessage {
   proposalId?: string
   summary?: string[]
   warnings?: string[]
-  quick?: { id: string; label: string; done?: boolean }[]
+  quick?: { id: string; label: string; done?: boolean; kind?: string; text?: string; minutes?: number; taskId?: string }[]
 }
 
 /** Start of today's logical day (the app resets at 06:00). The chat only shows today. */
@@ -256,7 +256,10 @@ export default function AssistantPanel({ open, onClose, prefill, onPrefillUsed }
                       key={q.id}
                       className={`asst-chip${q.done ? ' done' : ''}`}
                       disabled={!!q.done || !!busyIds[key]}
-                      onClick={() => act(key, () => quickAction(m.id, q.id))}
+                      onClick={() => {
+                        if (q.kind === 'timer') window.dispatchEvent(new CustomEvent('joelhq:start-timer', { detail: { label: q.text ?? 'Focus', minutes: q.minutes ?? 45, taskId: q.taskId } }))
+                        void act(key, () => quickAction(m.id, q.id))
+                      }}
                     >
                       {q.done && <FiCheck size={14} />}
                       {q.label}

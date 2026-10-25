@@ -19,6 +19,7 @@ import type { QuickItem } from './assistant'
 import { applyAction } from './actions'
 import { parseTime, weekdayOfKey, weekdayName } from './dates'
 import { describeShift, loadLastWeek } from './shifts'
+import { REFLECT_CHIPS, buildReview, followUpLine, missedLine, nextSetup, toneOf } from './accountability'
 import { busyBlocks, freeGaps, normaliseProfile, parseSpan, suggest, toHHMM, toMinutes, type Block, type Slot, type Suggestion } from './planner'
 import {
   loadGoals,
@@ -45,6 +46,8 @@ export const REMINDER_GRACE = 5
 export const MAX_REMINDERS_PER_DAY = 2
 export const MAX_PER_DAY = 4
 export const SHIFTS_FROM = 16 * 60
+export const REVIEW_FROM = 19 * 60 + 30
+export const FOLLOW_UP_AFTER = 75 // minutes
 export const WEEKLY_FROM = 18 * 60
 export const WEEKLY_UNTIL = 21 * 60
 const DAY_RESET = 6 * 60
@@ -85,9 +88,13 @@ export interface Schedule {
   weeklyFor?: string
   /** Monday of the week the shifts question was asked for. */
   shiftsFor?: string
+  /** Monday of the week the Sunday review was sent for. */
+  reviewFor?: string
+  /** A goal check-in waiting for an answer: asked at (ms), for this task. */
+  pending?: { taskId: string; at: number; name: string; goalId: string } | null
 }
 
-export type Force = 'morning' | 'evening' | 'reminder' | 'checkin' | 'weekly' | 'shifts'
+export type Force = 'morning' | 'evening' | 'reminder' | 'checkin' | 'weekly' | 'shifts' | 'review' | 'setup'
 
 const asTasks = (v: unknown): TaskLike[] => (Array.isArray(v) ? (v as TaskLike[]) : [])
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
@@ -253,6 +260,8 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
   let todayTasks = tasks.filter((t) => (t.date ?? today) === today && !t.skipped)
   const [routines, goals] = await Promise.all([loadRoutines(db), loadGoals(db)])
   const monday = mondayOfKey(today)
+  const tone = toneOf(profileRaw?.tone)
+  const yesterdayKey = addDaysToKey(today, -1)
 
   // Morning briefing
   const morningDue = force === 'morning' || (minutes >= MORNING_FROM && minutes < MORNING_UNTIL && counters.morningDay !== today)
@@ -291,11 +300,12 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
     for (const g of goals) {
       const done = sessionsThisWeek(g, tasks, monday)
       const planned = todayTasks.some((t) => norm(String(t.t ?? '')).includes(norm(g.name)))
-      if (planned || goalChips.length >= 2 || !needsNudge(g, done, today)) continue
+      const missed = tasks.some((t) => t.date === yesterdayKey && !t.done && !t.skipped && norm(String(t.t ?? '')).includes(norm(g.name)))
+      if (planned || goalChips.length >= 2 || !(missed || needsNudge(g, done, today))) continue
       const slot = pickSlot(gaps, g.minutes, earliest)
       if (!slot) continue
       gaps = takeFromGaps(gaps, slot)
-      goalLines.push(`${g.name}: ${done} of ${g.perWeek} this week. I would do ${g.minutes} min at ${clock(slot.start)}.`)
+      goalLines.push(`${missed ? `${missedLine(tone, g.name)} ` : ''}${g.name}: ${done} of ${g.perWeek} this week. I would do ${g.minutes} min at ${clock(slot.start)}.`)
       goalChips.push({ id: `g${goalChips.length}`, prompt: goalLines[goalLines.length - 1], label: `Add ${clock(slot.start)} ${g.name}`, kind: 'task', date: today, text: `${g.name} session`, time: clock(slot.start), minutes: g.minutes })
     }
 
@@ -371,6 +381,11 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
     const chips: QuickItem[] = [
       { id: 'done', group: 'r', prompt: reminderText(x.t, Math.max(0, x.away)), label: 'Done', kind: 'task_done', date: today, taskId: String(x.t.id), text: String(x.t.t ?? 'task') },
     ]
+    const gl = goals.find((g) => norm(String(x.t.t ?? '')).includes(norm(g.name)))
+    if (gl) {
+      const own = Number((x.t as { minutes?: number }).minutes)
+      chips.push({ id: 'timer', group: 'r', label: 'Start timer', kind: 'timer', date: today, taskId: String(x.t.id), text: gl.name, minutes: Number.isFinite(own) && own >= 5 ? own : gl.minutes })
+    }
     if (later < 1440 && later < quietFrom) {
       chips.push({ id: 'later', group: 'r', label: '30 min later', kind: 'task_later', date: today, taskId: String(x.t.id), text: String(x.t.t ?? 'task'), time: clock(later) })
     }
@@ -394,7 +409,7 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
   if (finished.length && (force === 'checkin' || ((counters.sentToday ?? 0) <= 2 && checked.size === 0))) {
     const x = finished[0]
     checked.add(String(x.t.id))
-    edits.push({ path: ['checked'], value: [...checked] })
+    edits.push({ path: ['checked'], value: [...checked] }, { path: ['pending'], value: { taskId: String(x.t.id), at: now.getTime(), name: x.g.name, goalId: x.g.id } })
     bump()
     await save()
     const g = `c${x.t.id}`
@@ -404,6 +419,54 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
     ]
     await deliver(db, now, 'checkin', `Did you get your ${x.g.name} session done?`, chips, push)
     did.push('checkin')
+  }
+
+  // One follow-up when a check-in got no answer. Only once, never in quiet hours.
+  const pend = counters.pending
+  if (pend && (force === 'checkin' || now.getTime() - pend.at >= FOLLOW_UP_AFTER * 60_000)) {
+    const t = tasks.find((x) => String(x.id) === pend.taskId)
+    edits.push({ path: ['pending'], value: null })
+    counters.pending = null
+    if (t && !t.done && !t.skipped && (counters.sentToday ?? 0) < MAX_PER_DAY) {
+      bump()
+      await save()
+      const g = `f${pend.taskId}`
+      const chips: QuickItem[] = [
+        { id: 'yes', group: g, prompt: followUpLine(tone, pend.name), label: 'Yes, done', kind: 'task_done', date: today, taskId: pend.taskId, goalId: pend.goalId, text: pend.name },
+        { id: 'no', group: g, label: 'Not today', kind: 'task_skip', date: today, taskId: pend.taskId, text: pend.name },
+      ]
+      await deliver(db, now, 'checkin', followUpLine(tone, pend.name), chips, push)
+      did.push('followup')
+    } else await save()
+  }
+
+  // First-open setup: life mode, then how hard to push, then a first goal. One question at a time.
+  if (force === 'setup' || (did.length === 0 && minutes >= MORNING_FROM && (counters.sentToday ?? 0) <= 2 && (!profileRaw?.mode || !profileRaw?.tone || goals.length === 0))) {
+    const asked = (await db.getDoc('assistant/setup'))?.data
+    const step = nextSetup(profileRaw, asked, goals, today)
+    if (step) {
+      const key = !profileRaw?.mode ? 'mode' : !profileRaw?.tone ? 'tone' : 'goal'
+      await db.update('assistant/setup', [{ path: [key], value: key === 'goal' ? true : today }])
+      bump()
+      await save()
+      await deliver(db, now, step.kind, step.text, step.quick, push)
+      did.push('setup')
+    }
+  }
+
+  // Sunday evening: how the week went, and what got in the way.
+  const reviewDue = force === 'review' || (weekdayOfKey(today) === 0 && minutes >= REVIEW_FROM && minutes < WEEKLY_UNTIL + 60 && counters.reviewFor !== monday && (counters.sentToday ?? 0) <= 4)
+  if (reviewDue) {
+    const plans = await db.list('plans')
+    const habitRows = plans
+      .filter((p) => p.data.kind === 'habit' && p.data.active !== false && String(p.data.name ?? '').trim())
+      .map((p) => ({ name: String(p.data.name).trim(), dates: strArr(((state.habitLog ?? {}) as Record<string, unknown>)[p.id]) }))
+    const r = buildReview(tone, tasks, goals, habitRows, monday)
+    edits.push({ path: ['reviewFor'], value: monday })
+    bump()
+    await save()
+    await deliver(db, now, 'weekly', r.text, REFLECT_CHIPS(monday), push)
+    did.push('review')
   }
 
   // Sunday afternoon: "same shifts as last week?" (only if you work).

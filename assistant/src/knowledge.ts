@@ -7,6 +7,7 @@
 
 import type { Db } from './firestore'
 import { isSensitive } from './privacy'
+import { TONE_LABEL, parseTone } from './accountability'
 
 export type Mode = 'studying' | 'working' | 'both' | 'between'
 
@@ -78,6 +79,19 @@ export async function handleKnowledgeCommand(db: Db, text: string, now: Date): P
     if (!m) return 'Pick one: studying, working, both, or between.'
     await db.update('assistant/profile', [{ path: ['mode'], value: m }])
     return `Got it: ${MODE_LABEL[m]}. I will plan around that.`
+  }
+
+  if (/^skip\s+setup$/i.test(t)) {
+    await db.update('assistant/setup', [{ path: ['done'], value: true }])
+    return 'Okay, no more setup questions. You can still say "set mode both" or "set tone tough" any time.'
+  }
+
+  const tone = t.match(/^set\s+tone\s+(.+)$/i)
+  if (tone) {
+    const x = parseTone(tone[1])
+    if (!x) return 'Pick one: gentle, direct, or tough.'
+    await db.update('assistant/profile', [{ path: ['tone'], value: x }])
+    return `Got it: ${TONE_LABEL[x]}. That is how I will push you.`
   }
 
   const learn = t.match(/^(?:know|learn|remember)\s*:\s*(.+)$/i)

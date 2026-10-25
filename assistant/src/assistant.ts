@@ -12,8 +12,9 @@ import { describeShift, loadLastWeek, parseShifts, saveLastWeek, shiftActions } 
 import type { Db } from './firestore'
 import { addDaysToKey, londonResetDayKey } from './london'
 import { buildContext, isSensitive, type ResolveIndex } from './privacy'
-import { handleKnowledgeCommand } from './knowledge'
-import { handleRoutineCommand } from './routines'
+import { handleKnowledgeCommand, parseMode } from './knowledge'
+import { nextSetup, parseTone } from './accountability'
+import { handleRoutineCommand, loadGoals } from './routines'
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -296,7 +297,7 @@ export async function undo(db: Db, activityId: string, now: Date) {
 export interface QuickItem {
   id: string
   label: string
-  kind: 'shifts_same' | 'habit' | 'all_habits' | 'task' | 'task_done' | 'task_skip' | 'task_later' | 'goal_done' | 'dismiss'
+  kind: 'timer' | 'set_mode' | 'set_tone' | 'reflect' | 'shifts_same' | 'habit' | 'all_habits' | 'task' | 'task_done' | 'task_skip' | 'task_later' | 'goal_done' | 'dismiss'
   /** Buttons in one group answer the same question: answering one closes them all. */
   group?: string
   /** The question these buttons answer, shown on the Home card (set on the first button of a group). */
@@ -310,10 +311,42 @@ export interface QuickItem {
   text?: string
   time?: string
   minutes?: number
+  /** Answer carried by a setup or review button. */
+  value?: string
   done?: boolean
 }
 
 /** Applies one button on a message. Safe to tap twice: a done button does nothing. */
+/** Setup and review answers: saved in the assistant's own documents. */
+async function applyAnswer(db: Db, item: QuickItem, now: Date): Promise<void> {
+  const v = String(item.value ?? '')
+  if (item.kind === 'set_mode') {
+    const m = parseMode(v)
+    if (!m) throw new HttpError(400, 'Unknown mode')
+    await db.update('assistant/profile', [{ path: ['mode'], value: m }])
+  } else if (item.kind === 'set_tone') {
+    const t = parseTone(v)
+    if (!t) throw new HttpError(400, 'Unknown tone')
+    await db.update('assistant/profile', [{ path: ['tone'], value: t }])
+  } else {
+    const doc = await db.getDoc('assistant/reflections')
+    const old = Array.isArray(doc?.data.entries) ? (doc!.data.entries as unknown[]) : []
+    const entries = [...old, { week: item.date, answer: v.slice(0, 40), at: now.getTime() }].slice(-30)
+    await db.update('assistant/reflections', [{ path: ['entries'], value: entries }])
+  }
+  // The next setup question follows straight away instead of waiting for the next check.
+  if (item.kind !== 'reflect') {
+    const profile = (await db.getDoc('assistant/profile'))?.data
+    const asked = (await db.getDoc('assistant/setup'))?.data
+    const next = nextSetup(profile, asked, await loadGoals(db), item.date)
+    if (next) {
+      const id = crypto.randomUUID()
+      await db.set(`messages/${id}`, { id, role: 'assistant', kind: next.kind, text: next.text, at: now.getTime() + 1, summary: [], warnings: [], quick: next.quick })
+      await db.update('assistant/setup', [{ path: [item.kind === 'set_mode' ? 'tone' : 'goal'], value: item.kind === 'set_mode' ? item.date : true }])
+    }
+  }
+}
+
 export async function quickAction(db: Db, messageId: string, quickId: string, now: Date) {
   const msg = await db.getDoc(`messages/${messageId}`)
   if (!msg) throw new HttpError(404, 'Message not found')
@@ -323,7 +356,9 @@ export async function quickAction(db: Db, messageId: string, quickId: string, no
   if (item.done) return { applied: [] as string[] }
 
   const actions: Action[] = []
-  if (item.kind === 'shifts_same') {
+  if (item.kind === 'set_mode' || item.kind === 'set_tone' || item.kind === 'reflect') {
+    await applyAnswer(db, item, now)
+  } else if (item.kind === 'shifts_same') {
     const last = await loadLastWeek(db)
     if (last.length === 0) throw new HttpError(400, 'I have no saved shifts yet. Type: shifts: mon wed 9-3')
     const state = (await db.getDoc('joelhq/state'))?.data ?? {}
@@ -347,7 +382,7 @@ export async function quickAction(db: Db, messageId: string, quickId: string, no
   } else if (item.kind === 'goal_done' && item.goalId) {
     actions.push({ type: 'log_goal', goalId: item.goalId, name: item.text ?? 'goal', date: item.date })
   }
-  if (actions.length === 0 && item.kind !== 'dismiss' && item.kind !== 'shifts_same') throw new HttpError(400, 'Nothing to do for this button')
+  if (actions.length === 0 && !['dismiss', 'timer', 'shifts_same', 'set_mode', 'set_tone', 'reflect'].includes(item.kind)) throw new HttpError(400, 'Nothing to do for this button')
 
   const undo: UndoStep[] = []
   const applied: string[] = []

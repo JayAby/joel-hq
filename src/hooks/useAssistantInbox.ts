@@ -8,6 +8,10 @@ export interface InboxChip {
   done?: boolean
   group?: string
   prompt?: string
+  kind?: string
+  text?: string
+  minutes?: number
+  taskId?: string
 }
 interface MessageDoc {
   id: string

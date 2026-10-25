@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { FiCheck, FiSend, FiStar } from 'react-icons/fi'
+import { FiCheck, FiClock, FiSend, FiStar } from 'react-icons/fi'
 import { mondayOf, type RecurringPlan, type Task } from '../types'
 import { resetDayKey } from '../config'
 import { habitWeekCount, isHabitDoneToday } from '../plans'
@@ -179,6 +179,10 @@ export default function TodayHome({
     setActionError(null)
     setBusy((b) => ({ ...b, [key]: true }))
     try {
+      const chip = needs.flatMap((n) => n.chips).find((c) => c.id === chipId)
+      if (chip?.kind === 'timer') {
+        window.dispatchEvent(new CustomEvent('joelhq:start-timer', { detail: { label: chip.text ?? 'Focus', minutes: chip.minutes ?? 45, taskId: chip.taskId } }))
+      }
       await quickAction(messageId, chipId)
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Something went wrong.')
@@ -395,9 +399,14 @@ export default function TodayHome({
         ))}
       </button>
 
-      <button className="hm-checkin" onClick={() => setCheckIn(true)}>
-        <FiCheck /> Check in: what did you get done?
-      </button>
+      <div className="hm-row2">
+        <button className="hm-checkin" onClick={() => setCheckIn(true)}>
+          <FiCheck /> Check in
+        </button>
+        <button className="hm-focus" onClick={() => window.dispatchEvent(new CustomEvent('joelhq:start-timer', { detail: { ask: true } }))}>
+          <FiClock /> Start focus
+        </button>
+      </div>
 
       {habits.length > 0 && (
         <section className="hm-block" aria-label="Habits today">
