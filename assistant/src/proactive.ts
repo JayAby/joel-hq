@@ -269,7 +269,7 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
         const g = `r${r.id}`
         asks.push(`${r.name} at ${r.time} today. Want it on your list?`)
         askChips.push(
-          { id: `${g}y`, group: g, label: `Yes, add ${r.name}`, kind: 'task', date: today, text: r.name, time: r.time },
+          { id: `${g}y`, group: g, prompt: `${r.name} at ${r.time} today. Want it on your list?`, label: `Yes, add ${r.name}`, kind: 'task', date: today, text: r.name, time: r.time },
           { id: `${g}n`, group: g, label: 'Not this time', kind: 'dismiss', date: today },
         )
       }
@@ -292,7 +292,7 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
       if (!slot) continue
       gaps = takeFromGaps(gaps, slot)
       goalLines.push(`${g.name}: ${done} of ${g.perWeek} this week. I would do ${g.minutes} min at ${clock(slot.start)}.`)
-      goalChips.push({ id: `g${goalChips.length}`, label: `Add ${clock(slot.start)} ${g.name}`, kind: 'task', date: today, text: `${g.name} session`, time: clock(slot.start), minutes: g.minutes })
+      goalChips.push({ id: `g${goalChips.length}`, prompt: goalLines[goalLines.length - 1], label: `Add ${clock(slot.start)} ${g.name}`, kind: 'task', date: today, text: `${g.name} session`, time: clock(slot.start), minutes: g.minutes })
     }
 
     // Do not suggest a habit that is already on today's list.
@@ -365,7 +365,7 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
     const startMin = timeToMinutes(x.t.time) ?? minutes
     const later = startMin + 30
     const chips: QuickItem[] = [
-      { id: 'done', group: 'r', label: 'Done', kind: 'task_done', date: today, taskId: String(x.t.id), text: String(x.t.t ?? 'task') },
+      { id: 'done', group: 'r', prompt: reminderText(x.t, Math.max(0, x.away)), label: 'Done', kind: 'task_done', date: today, taskId: String(x.t.id), text: String(x.t.t ?? 'task') },
     ]
     if (later < 1440 && later < quietFrom) {
       chips.push({ id: 'later', group: 'r', label: '30 min later', kind: 'task_later', date: today, taskId: String(x.t.id), text: String(x.t.t ?? 'task'), time: clock(later) })
@@ -395,7 +395,7 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
     await save()
     const g = `c${x.t.id}`
     const chips: QuickItem[] = [
-      { id: 'yes', group: g, label: 'Yes, done', kind: 'task_done', date: today, taskId: String(x.t.id), goalId: x.g.id, text: x.g.name },
+      { id: 'yes', group: g, prompt: `Did you get your ${x.g.name} session done?`, label: 'Yes, done', kind: 'task_done', date: today, taskId: String(x.t.id), goalId: x.g.id, text: x.g.name },
       { id: 'no', group: g, label: 'Not today', kind: 'task_skip', date: today, taskId: String(x.t.id), text: x.g.name },
     ]
     await deliver(db, now, 'checkin', `Did you get your ${x.g.name} session done?`, chips, push)

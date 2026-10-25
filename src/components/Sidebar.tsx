@@ -17,8 +17,14 @@ export default function Sidebar({ view, onNavigateView }: Props) {
   const [assistantOpen, setAssistantOpen] = useState(false)
   const { unread, toast, dismissToast } = useAssistantAlerts(assistantOpen)
 
+  const [prefill, setPrefill] = useState<{ text: string; n: number } | null>(null)
+
   useEffect(() => {
-    const open = () => setAssistantOpen(true)
+    const open = (e: Event) => {
+      const text = (e as CustomEvent<{ text?: string }>).detail?.text
+      if (text) setPrefill({ text, n: Date.now() })
+      setAssistantOpen(true)
+    }
     window.addEventListener('joelhq:open-assistant', open)
     return () => window.removeEventListener('joelhq:open-assistant', open)
   }, [])
@@ -81,7 +87,7 @@ export default function Sidebar({ view, onNavigateView }: Props) {
       />
 
       <AssistantBanner message={assistantOpen ? null : toast} onOpen={() => setAssistantOpen(true)} onDismiss={dismissToast} />
-      <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
+      <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} prefill={prefill} onPrefillUsed={() => setPrefill(null)} />
     </>
   )
 }

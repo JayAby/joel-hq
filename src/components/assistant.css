@@ -59,3 +59,16 @@
 .asst-chip:hover:not(:disabled) { background: #232938; }
 .asst-chip.done { background: #16352b; border-color: #16352b; color: #4ade9b; cursor: default; }
 .asst-chip:disabled:not(.done) { opacity: .6; }
+
+/* Stage 2 look */
+.asst-head { background: #2a2360; border-bottom: 0; border-radius: 0 0 28px 28px; padding: 18px 18px 18px; color: #fff; }
+.asst-badge { width: 44px; height: 44px; border-radius: 50%; background: #ffb86b; color: #1a1205; }
+.asst-title { font-family: 'Space Grotesk', sans-serif; font-size: 20px; }
+.asst-sub { color: #cfc9f7; }
+.asst-close { color: #cfc9f7; }
+.asst-msg { border-radius: 20px; font-size: 15px; padding: 12px 15px; }
+.asst-msg.bot { border-bottom-left-radius: 6px; }
+.asst-msg.me { background: #ffb86b; color: #1a1205; border-bottom-right-radius: 6px; font-weight: 500; }
+.asst-chip { min-height: 44px; padding: 0 16px; font-size: 14px; }
+.asst-send { background: #ffb86b; color: #1a1205; }
+.asst-input { font-size: 15px; }

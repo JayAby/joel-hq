@@ -272,6 +272,8 @@ export interface QuickItem {
   kind: 'habit' | 'all_habits' | 'task' | 'task_done' | 'task_skip' | 'task_later' | 'goal_done' | 'dismiss'
   /** Buttons in one group answer the same question: answering one closes them all. */
   group?: string
+  /** The question these buttons answer, shown on the Home card (set on the first button of a group). */
+  prompt?: string
   taskId?: string
   goalId?: string
   date: string

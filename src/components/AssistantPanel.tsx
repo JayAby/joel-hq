@@ -38,9 +38,12 @@ interface ActivityDoc {
 interface Props {
   open: boolean
   onClose: () => void
+  /** Text typed on Home: sent as soon as the panel is open. */
+  prefill?: { text: string; n: number } | null
+  onPrefillUsed?: () => void
 }
 
-export default function AssistantPanel({ open, onClose }: Props) {
+export default function AssistantPanel({ open, onClose, prefill, onPrefillUsed }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [proposals, setProposals] = useState<Record<string, ProposalDoc>>({})
   const [activities, setActivities] = useState<Record<string, ActivityDoc>>({})
@@ -113,12 +116,20 @@ export default function AssistantPanel({ open, onClose }: Props) {
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  const sendRef = useRef<(text: string) => Promise<void>>(async () => undefined)
+  useEffect(() => {
+    if (!open || !prefill) return
+    onPrefillUsed?.()
+    void sendRef.current(prefill.text)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, prefill?.n])
+
   if (!open) return null
 
   const shown = messages.filter((m) => m.at >= todayStart())
 
-  async function send() {
-    const text = input.trim()
+  async function send(override?: string) {
+    const text = (override ?? input).trim()
     if (!text || sending) return
     setError(null)
     setSending(true)
@@ -134,6 +145,8 @@ export default function AssistantPanel({ open, onClose }: Props) {
       setSending(false)
     }
   }
+
+  sendRef.current = (t: string) => send(t)
 
   async function act(id: string, fn: () => Promise<unknown>) {
     setError(null)
@@ -215,7 +228,7 @@ export default function AssistantPanel({ open, onClose }: Props) {
       <div className="asst-head">
         <div className="asst-badge"><FiStar size={18} /></div>
         <div className="asst-head-text">
-          <div className="asst-title">Assistant</div>
+          <div className="asst-title">Your assistant</div>
           <div className="asst-sub">Never changes anything without asking.</div>
         </div>
         <button className="asst-close" onClick={onClose} aria-label="Close assistant"><FiX size={20} /></button>

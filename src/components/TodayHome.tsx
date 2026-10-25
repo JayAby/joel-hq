@@ -1,9 +1,13 @@
 import { useMemo, useState } from 'react'
-import { FiCheck, FiMessageCircle, FiStar } from 'react-icons/fi'
+import { FiCheck, FiSend, FiStar } from 'react-icons/fi'
 import { mondayOf, type RecurringPlan, type Task } from '../types'
 import { resetDayKey } from '../config'
 import { habitWeekCount, isHabitDoneToday } from '../plans'
 import type { Health } from '../hooks/useAssistantHealth'
+import { useAssistantInbox } from '../hooks/useAssistantInbox'
+import { quickAction, undoActivity } from '../assistantApi'
+import AssistantFace, { type Mood } from './AssistantFace'
+import CheckIn from './CheckIn'
 import {
   busyBlocks,
   ceil15,
@@ -48,6 +52,13 @@ function greetingFor(now: Date): string {
   return 'Good evening'
 }
 
+const SKY = { morning: '#ffb86b', afternoon: '#8fb4ff', evening: '#b9afff', night: '#3b4a73' }
+function skyFor(now: Date): { key: keyof typeof SKY; color: string } {
+  const h = now.getHours()
+  const key = h < 5 ? 'night' : h < 12 ? 'morning' : h < 18 ? 'afternoon' : h < 22 ? 'evening' : 'night'
+  return { key, color: SKY[key] }
+}
+
 const offKey = (day: string) => `joelhq-suggest-off:${day}`
 
 function readOff(day: string): string[] {
@@ -79,6 +90,11 @@ export default function TodayHome({
 }: Props) {
   const today = resetDayKey(now)
   const [dismissed, setDismissed] = useState<string[]>(() => readOff(today))
+  const inbox = useAssistantInbox()
+  const [busy, setBusy] = useState<Record<string, boolean>>({})
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [checkIn, setCheckIn] = useState(false)
+  const [ask, setAsk] = useState('')
 
   const nowMin = now.getHours() * 60 + now.getMinutes()
   const nowL = logical(nowMin)
@@ -141,6 +157,57 @@ export default function TodayHome({
   const markerPct = Math.min(100, Math.max(0, ((nowMin - wake) / (bed - wake)) * 100))
   const doneHabits = habits.filter((h) => isHabitDoneToday(h.id, habitLog, today)).length
 
+  const sky = skyFor(now)
+  const overdue = view.blocks.length > 0 && tasks.some((t) => {
+    if (t.done || t.skipped || (t.date && t.date !== today)) return false
+    const b = busyBlocks([t], profile)[0]
+    return !!b && logical(b.end) < nowL
+  })
+  const needs = inbox.needs
+  let mood: Mood = 'happy'
+  if (health.status === 'stale' || health.status === 'error' || overdue) mood = 'concerned'
+  else if (view.open.length === 0 && view.doneCount > 0) mood = 'proud'
+  else if (needs.length > 0) mood = 'neutral'
+
+  let headline: string
+  if (view.current) headline = `${view.current.t.t} until ${toHHMM(view.current.block.end)}.`
+  else if (view.next) headline = `${view.next.t.t} is next, in ${untilText(Math.max(0, logical(view.next.block.start) - nowL))}. ${view.freeLabel}.`
+  else if (view.open.length > 0) headline = `${view.open.length} thing${view.open.length === 1 ? '' : 's'} left on today's list. ${view.freeLabel}.`
+  else if (view.doneCount > 0) headline = `Everything on today's list is done. Nice work.`
+  else headline = `Nothing planned yet. Tell me what today looks like.`
+  if (needs.length > 0) headline += ` ${needs.length} thing${needs.length === 1 ? ' needs' : 's need'} you.`
+
+  async function answer(key: string, messageId: string, chipId: string) {
+    setActionError(null)
+    setBusy((b) => ({ ...b, [key]: true }))
+    try {
+      await quickAction(messageId, chipId)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Something went wrong.')
+    } finally {
+      setBusy((b) => ({ ...b, [key]: false }))
+    }
+  }
+
+  async function undo(id: string) {
+    setActionError(null)
+    setBusy((b) => ({ ...b, [id]: true }))
+    try {
+      await undoActivity(id.split(':')[0])
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Something went wrong.')
+    } finally {
+      setBusy((b) => ({ ...b, [id]: false }))
+    }
+  }
+
+  function submitAsk() {
+    const text = ask.trim()
+    if (!text) return
+    setAsk('')
+    window.dispatchEvent(new CustomEvent('joelhq:open-assistant', { detail: { text } }))
+  }
+
   function dismiss(label: string) {
     const next = [...dismissed, label]
     setDismissed(next)
@@ -170,13 +237,16 @@ export default function TodayHome({
 
   return (
     <div className="hm">
-      <header className="hm-head">
-        <div className="hm-date">
-          {now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+      <header className={`hm-top ${sky.key}`} style={{ background: sky.color }}>
+        <div className="hm-top-row">
+          <div>
+            <div className="hm-clock">{now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
+            <div className="hm-date">{now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+          </div>
+          <AssistantFace mood={mood} size={64} color="rgba(255,255,255,0.55)" />
         </div>
-        <h1 className="hm-greeting">
-          {greetingFor(now)}, Joel
-        </h1>
+        <h1 className="hm-greeting">{greetingFor(now)}, Joel.</h1>
+        <p className="hm-headline">{headline}</p>
       </header>
 
       {(health.status === 'stale' || health.status === 'error') && (
@@ -223,6 +293,33 @@ export default function TodayHome({
           </div>
         </div>
       </section>
+
+      {actionError && <div className="hm-health" role="alert">{actionError}</div>}
+
+      {needs.length > 0 && (
+        <section className="hm-block" aria-label="Needs you">
+          <div className="hm-block-head">
+            <h2>Needs you</h2>
+          </div>
+          {needs.map((n) => (
+            <div key={n.key} className="hm-need">
+              <div className="hm-need-q">{n.prompt}</div>
+              <div className="hm-need-btns">
+                {n.chips.map((c, i) => (
+                  <button
+                    key={c.id}
+                    className={`hm-need-btn${i === 0 ? ' primary' : ''}`}
+                    disabled={!!busy[`${n.key}:${c.id}`]}
+                    onClick={() => void answer(`${n.key}:${c.id}`, n.messageId, c.id)}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
 
       {view.found && (
         <section className="hm-card hm-suggest" aria-label="Suggestion">
@@ -279,6 +376,10 @@ export default function TodayHome({
         )}
       </section>
 
+      <button className="hm-checkin" onClick={() => setCheckIn(true)}>
+        <FiCheck /> Check in: what did you get done?
+      </button>
+
       {habits.length > 0 && (
         <section className="hm-block" aria-label="Habits today">
           <div className="hm-block-head">
@@ -306,9 +407,60 @@ export default function TodayHome({
         </section>
       )}
 
-      <button className="hm-ask" onClick={onOpenAssistant}>
-        <FiMessageCircle /> Tell the assistant anything: "shop: milk"
-      </button>
+      {inbox.done.length > 0 && (
+        <section className="hm-block" aria-label="Done for you">
+          <div className="hm-block-head">
+            <h2>Done for you</h2>
+            <button className="hm-link" onClick={onOpenAssistant}>Open chat</button>
+          </div>
+          <ul className="hm-done">
+            {inbox.done.map((d) => (
+              <li key={d.id}>
+                <span className={`hm-done-text${d.undone ? ' undone' : ''}`}>{d.text}</span>
+                {d.undone ? (
+                  <span className="hm-done-tag">Undone</span>
+                ) : (
+                  <button className="hm-undo" disabled={!!busy[d.id]} onClick={() => void undo(d.id)}>
+                    Undo
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <form
+        className="hm-askbar"
+        onSubmit={(e) => {
+          e.preventDefault()
+          submitAsk()
+        }}
+      >
+        <input
+          className="hm-askinput"
+          value={ask}
+          onChange={(e) => setAsk(e.target.value)}
+          placeholder="Tell me anything…"
+          aria-label="Tell the assistant anything"
+          enterKeyHint="send"
+        />
+        <button className="hm-asksend" type="submit" disabled={!ask.trim()} aria-label="Send to the assistant">
+          <FiSend size={18} />
+        </button>
+      </form>
+
+      {checkIn && (
+        <CheckIn
+          today={today}
+          tasks={tasks}
+          habits={habits}
+          habitLog={habitLog}
+          onToggleTask={onToggleTask}
+          onToggleHabit={onToggleHabit}
+          onClose={() => setCheckIn(false)}
+        />
+      )}
 
       <footer className="hm-foot">
         <span>
