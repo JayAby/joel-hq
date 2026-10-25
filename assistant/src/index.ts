@@ -1,8 +1,10 @@
 import { approve, handleMessage, HttpError, quickAction, reject, saveExchange, undo } from './assistant'
 import { verifyFirebaseIdToken } from './auth'
 import { makeRunAi, type AiEnv } from './ai'
-import { Firestore, parseServiceAccount, type Db } from './firestore'
+import { Firestore, accessToken, parseServiceAccount, type Db } from './firestore'
+import { pushText, sendPush } from './push'
 import { londonDateKey, londonMondayOf, londonResetDayKey, londonTime } from './london'
+import { backupWeekly, recordDay } from './outcomes'
 import { autoTidy } from './housekeeping'
 import { runProactive, type Force } from './proactive'
 
@@ -35,6 +37,18 @@ function json(body: unknown, status = 200, extra: Record<string, string> = {}): 
     status,
     headers: { 'Content-Type': 'application/json', ...extra },
   })
+}
+
+/** Pushes a message to Joel's phone(s) through Firebase Cloud Messaging. */
+function makePush(env: Env, d: Db) {
+  const sa = parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT)
+  return async (kind: string, text: string) => {
+    const t = pushText(kind, text)
+    return sendPush(
+      { db: d, projectId: sa.project_id, getAccessToken: () => accessToken(sa, 'https://www.googleapis.com/auth/firebase.messaging') },
+      { ...t, kind },
+    )
+  }
 }
 
 function db(env: Env): Db {
@@ -102,15 +116,36 @@ export default {
       console.error('heartbeat failed', e)
     }
     try {
-      const did = await runProactive(d, now)
+      const did = await runProactive(d, now, undefined, makePush(env, d))
       if (did.length) console.log('proactive sent', did.join(','))
+      await d.update('assistant/heartbeat', [{ path: ['lastOkIso'], value: now.toISOString() }])
     } catch (e) {
       console.error('proactive failed', e)
+      try {
+        await d.update('assistant/heartbeat', [
+          { path: ['lastErrorIso'], value: now.toISOString() },
+          { path: ['lastError'], value: String(e).slice(0, 200) },
+        ])
+      } catch {
+        /* nothing more we can do */
+      }
     }
     try {
       await autoTidy(d, now)
     } catch (e) {
       console.error('tidy failed', e)
+    }
+    // Quiet housekeeping: the evening record of what happened, and the weekly backup.
+    try {
+      await recordDay(d, now)
+    } catch (e) {
+      console.error('record day failed', e)
+    }
+    try {
+      const id = await backupWeekly(d, now)
+      if (id) console.log('backup saved', id)
+    } catch (e) {
+      console.error('backup failed', e)
     }
   },
 }
@@ -167,8 +202,16 @@ async function route(req: Request, env: Env): Promise<Response> {
       if (url.pathname === '/tick') {
         // Test helper: { "force": "morning" | "evening" | "reminder" } sends that message now.
         const f = b.force
-        const force: Force | undefined = f === 'morning' || f === 'evening' || f === 'reminder' ? f : undefined
-        return json({ sent: await runProactive(db(env), now, force) })
+        const force: Force | undefined = f === 'morning' || f === 'evening' || f === 'reminder' || f === 'checkin' || f === 'weekly' ? f : undefined
+        const d = db(env)
+        return json({ sent: await runProactive(d, now, force, makePush(env, d)) })
+      }
+      if (url.pathname === '/maintenance') {
+        // Test helper: { "task": "record" | "backup" } runs that job now, ignoring its time window.
+        const d = db(env)
+        if (b.task === 'record') return json({ recorded: await recordDay(d, now, true) })
+        if (b.task === 'backup') return json({ backup: await backupWeekly(d, now, true) })
+        return json({ error: 'task must be "record" or "backup"' }, 400)
       }
       if (url.pathname === '/approve') {
         if (typeof b.id !== 'string') return json({ error: 'id is required' }, 400)

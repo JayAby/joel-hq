@@ -3,6 +3,7 @@ import { useSyncedState } from './hooks/useSyncedState'
 import { handleSpotifyRedirect } from './spotify'
 import { notificationPermission, requestNotificationPermission, notify } from './notifications'
 import { enablePush, pushAvailable, startPush } from './push'
+import { useAssistantHealth } from './hooks/useAssistantHealth'
 import { mondayOf, Task, UNSCHEDULED_KEY, HistoryEntry } from './types'
 import { resetDayKey, parseLocalDateKey } from './config'
 import { confirmDelete } from './confirm'
@@ -97,6 +98,7 @@ export default function App() {
   const [view, setView] = useState<ViewName>('dashboard')
   const [openSection, setOpenSection] = useState<string | null>(null)
   const profile = useAssistantProfile()
+  const assistantHealth = useAssistantHealth()
   const [openDeviceId, setOpenDeviceId] = useState<string | null>(null)
   const [focusLogOpen, setFocusLogOpen] = useState(false)
   const now = useClock()
@@ -710,6 +712,7 @@ export default function App() {
             habitLog={state.habitLog}
             profile={profile}
             synced={synced && ready}
+            health={assistantHealth}
             notifPerm={notifPerm}
             onToggleTask={toggleTask}
             onToggleHabit={toggleHabitToday}

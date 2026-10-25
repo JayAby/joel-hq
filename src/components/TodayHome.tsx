@@ -3,6 +3,7 @@ import { FiCheck, FiMessageCircle, FiStar } from 'react-icons/fi'
 import { mondayOf, type RecurringPlan, type Task } from '../types'
 import { resetDayKey } from '../config'
 import { habitWeekCount, isHabitDoneToday } from '../plans'
+import type { Health } from '../hooks/useAssistantHealth'
 import {
   busyBlocks,
   ceil15,
@@ -24,6 +25,7 @@ interface Props {
   habitLog: Record<string, string[]>
   profile: Profile
   synced: boolean
+  health: Health
   notifPerm: NotificationPermission
   onToggleTask: (id: string) => void
   onToggleHabit: (id: string) => void
@@ -65,6 +67,7 @@ export default function TodayHome({
   habitLog,
   profile,
   synced,
+  health,
   notifPerm,
   onToggleTask,
   onToggleHabit,
@@ -175,6 +178,14 @@ export default function TodayHome({
           {greetingFor(now)}, Joel
         </h1>
       </header>
+
+      {(health.status === 'stale' || health.status === 'error') && (
+        <div className="hm-health" role="status">
+          {health.status === 'stale'
+            ? `The assistant has not checked in since ${health.lastTick?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) ?? 'a while ago'}. Reminders may be late.`
+            : 'The assistant hit a problem a moment ago. It will try again in a few minutes.'}
+        </div>
+      )}
 
       <section className="hm-card hm-next" aria-label="Next up">
         <div className="hm-eyebrow">

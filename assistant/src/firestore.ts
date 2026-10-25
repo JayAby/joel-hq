@@ -33,7 +33,8 @@ export interface Db {
   list(collection: string): Promise<{ id: string; data: Record<string, unknown> }[]>
 }
 
-let cached: { token: string; exp: number } | null = null
+const DATASTORE_SCOPE = 'https://www.googleapis.com/auth/datastore'
+const cached = new Map<string, { token: string; exp: number }>()
 
 function b64url(input: ArrayBuffer | string): string {
   const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : new Uint8Array(input)
@@ -65,15 +66,16 @@ export function parseServiceAccount(raw: string): ServiceAccount {
   return sa
 }
 
-async function accessToken(sa: ServiceAccount): Promise<string> {
+export async function accessToken(sa: ServiceAccount, scope: string = DATASTORE_SCOPE): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
-  if (cached && cached.exp - 60 > now) return cached.token
+  const hit = cached.get(scope)
+  if (hit && hit.exp - 60 > now) return hit.token
 
   const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
   const claim = b64url(
     JSON.stringify({
       iss: sa.client_email,
-      scope: 'https://www.googleapis.com/auth/datastore',
+      scope,
       aud: 'https://oauth2.googleapis.com/token',
       iat: now,
       exp: now + 3600,
@@ -94,7 +96,7 @@ async function accessToken(sa: ServiceAccount): Promise<string> {
   })
   if (!res.ok) throw new Error(`Token request failed: ${res.status} ${await res.text()}`)
   const data = (await res.json()) as { access_token: string; expires_in: number }
-  cached = { token: data.access_token, exp: now + data.expires_in }
+  cached.set(scope, { token: data.access_token, exp: now + data.expires_in })
   return data.access_token
 }
 

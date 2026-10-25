@@ -6,6 +6,7 @@ import { ConflictError, type Db, type Edit } from './firestore'
 import type { ResolveIndex } from './privacy'
 import { londonResetDayKey } from './london'
 import { parseTime, resolveDate } from './dates'
+import { logGoalDate, unlogGoalDate } from './routines'
 
 export type Action =
   | { type: 'add_task'; text: string; date: string; time?: string; minutes?: number }
@@ -21,6 +22,11 @@ export type Action =
     }
   | { type: 'mark_habit_done'; habit: string; habitId: string; date: string }
   | { type: 'add_shopping'; name: string; category: string }
+  // Only created by buttons the assistant itself sent, never by the AI.
+  | { type: 'complete_task'; taskId: string; text: string; goalId?: string; date?: string }
+  | { type: 'skip_task'; taskId: string; text: string }
+  | { type: 'reschedule_task'; taskId: string; text: string; time: string }
+  | { type: 'log_goal'; goalId: string; name: string; date: string }
 
 /** What is needed to reverse one applied action. */
 export type UndoStep =
@@ -28,6 +34,8 @@ export type UndoStep =
   | { kind: 'remove_shopping'; itemId: string }
   | { kind: 'remove_habit_date'; planId: string; date: string }
   | { kind: 'remove_session'; id: string }
+  | { kind: 'restore_task'; taskId: string; prev: { done?: boolean; skipped?: boolean; time?: string } }
+  | { kind: 'remove_goal_date'; goalId: string; date: string }
   | { kind: 'noop' }
 
 const MAX_ACTIONS = 5
@@ -162,6 +170,14 @@ export function describe(a: Action): string {
       return `Mark habit "${a.habit}" done for ${a.date}`
     case 'add_shopping':
       return `Add "${a.name}" to your shopping list (${a.category})`
+    case 'complete_task':
+      return `Mark "${a.text}" done`
+    case 'skip_task':
+      return `Skip "${a.text}" today`
+    case 'reschedule_task':
+      return `Move "${a.text}" to ${a.time}`
+    case 'log_goal':
+      return `Log a ${a.name} session for ${a.date}`
   }
 }
 
@@ -226,6 +242,29 @@ export async function applyAction(db: Db, a: Action, now: Date): Promise<UndoSte
       })
       return added ? { kind: 'remove_habit_date', planId: a.habitId, date: a.date } : { kind: 'noop' }
     }
+    case 'complete_task':
+    case 'skip_task':
+    case 'reschedule_task': {
+      let prev: { done?: boolean; skipped?: boolean; time?: string } | null = null
+      await modifyState(db, (d) => {
+        const tasks = arr(d.tasks)
+        const t = tasks.find((x) => x.id === a.taskId)
+        if (!t) return null
+        const before = { done: t.done === true, skipped: t.skipped === true, time: typeof t.time === 'string' ? t.time : undefined }
+        const after = { ...t }
+        if (a.type === 'complete_task') after.done = true
+        else if (a.type === 'skip_task') after.skipped = true
+        else after.time = a.time
+        prev = before
+        return [{ path: ['tasks'], value: tasks.map((x) => (x.id === a.taskId ? after : x)) }]
+      })
+      if (a.type === 'complete_task' && a.goalId && a.date) await logGoalDate(db, a.goalId, a.date)
+      return prev ? { kind: 'restore_task', taskId: a.taskId, prev } : { kind: 'noop' }
+    }
+    case 'log_goal': {
+      const added = await logGoalDate(db, a.goalId, a.date)
+      return added ? { kind: 'remove_goal_date', goalId: a.goalId, date: a.date } : { kind: 'noop' }
+    }
     case 'log_progress': {
       const id = crypto.randomUUID()
       const doc: Record<string, unknown> = {
@@ -275,6 +314,26 @@ export async function undoStep(db: Db, s: UndoStep): Promise<void> {
       return
     case 'remove_session':
       await db.remove(`projectSessions/${s.id}`)
+      return
+    case 'restore_task':
+      await modifyState(db, (d) => {
+        const tasks = arr(d.tasks)
+        if (!tasks.some((x) => x.id === s.taskId)) return null
+        return [
+          {
+            path: ['tasks'],
+            value: tasks.map((x) => {
+              if (x.id !== s.taskId) return x
+              const y: Record<string, unknown> = { ...x, done: s.prev.done === true, skipped: s.prev.skipped === true }
+              if (s.prev.time !== undefined) y.time = s.prev.time
+              return y
+            }),
+          },
+        ]
+      })
+      return
+    case 'remove_goal_date':
+      await unlogGoalDate(db, s.goalId, s.date)
       return
     case 'noop':
       return

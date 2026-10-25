@@ -16,7 +16,22 @@
 import type { Db } from './firestore'
 import { addDaysToKey, londonMinutes, londonResetDayKey } from './london'
 import type { QuickItem } from './assistant'
-import { busyBlocks, freeGaps, normaliseProfile, parseSpan, suggest, toHHMM, toMinutes, type Slot, type Suggestion } from './planner'
+import { applyAction } from './actions'
+import { parseTime, weekdayOfKey, weekdayName } from './dates'
+import { busyBlocks, freeGaps, normaliseProfile, parseSpan, suggest, toHHMM, toMinutes, type Block, type Slot, type Suggestion } from './planner'
+import {
+  loadGoals,
+  loadRoutines,
+  mondayOfKey,
+  needsNudge,
+  pickSlot,
+  planWeek,
+  routineOn,
+  sessionsThisWeek,
+  takeFromGaps,
+  type Goal,
+  type Routine,
+} from './routines'
 
 export const MORNING_FROM = 8 * 60
 export const MORNING_UNTIL = 12 * 60
@@ -28,6 +43,8 @@ export const REMINDER_LEAD = 10
 export const REMINDER_GRACE = 5
 export const MAX_REMINDERS_PER_DAY = 2
 export const MAX_PER_DAY = 4
+export const WEEKLY_FROM = 18 * 60
+export const WEEKLY_UNTIL = 21 * 60
 const DAY_RESET = 6 * 60
 
 interface TaskLike {
@@ -60,9 +77,13 @@ export interface Schedule {
   /** The "I assume 8-hour shifts" hint is shown once. */
   hintShown?: boolean
   cleanedDay?: string
+  /** Task ids already asked "did you do it?" today. */
+  checked?: string[]
+  /** Monday of the week the Sunday plan was sent for. */
+  weeklyFor?: string
 }
 
-export type Force = 'morning' | 'evening' | 'reminder'
+export type Force = 'morning' | 'evening' | 'reminder' | 'checkin' | 'weekly'
 
 const asTasks = (v: unknown): TaskLike[] => (Array.isArray(v) ? (v as TaskLike[]) : [])
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
@@ -129,6 +150,8 @@ export function morningText(a: {
   otherHabits: string[]
   unknownYesterday: string[]
   assumedShift: number | null
+  asks?: string[]
+  goalLines?: string[]
 }): string {
   const out: string[] = ['Good morning, Joel.']
   if (a.timed.length) {
@@ -138,6 +161,8 @@ export function morningText(a: {
   }
   if (a.untimedOpen) out.push(`Plus ${a.untimedOpen} other thing${a.untimedOpen === 1 ? '' : 's'} to do.`)
   if (a.gaps.length) out.push(`Free: ${a.gaps.slice(0, 2).map((g) => `${clock(g.start)}–${clock(g.end)}`).join(' and ')}.`)
+  if (a.asks?.length) out.push('', ...a.asks)
+  if (a.goalLines?.length) out.push('', ...a.goalLines)
   if (a.suggestions.length) {
     out.push('', `I would fit in ${joinNames(a.suggestions.map((x) => `${x.label} at ${clock(x.start)}`))}. Tap to add.`)
   }
@@ -179,21 +204,36 @@ async function send(db: Db, now: Date, kind: string, text: string, quick: QuickI
   await db.set(`messages/${id}`, doc)
 }
 
+async function deliver(db: Db, now: Date, kind: string, text: string, quick: QuickItem[], push?: PushHook): Promise<void> {
+  await send(db, now, kind, text, quick)
+  try {
+    await push?.(kind, text)
+  } catch (e) {
+    console.error('push hook failed', e)
+  }
+}
+
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
 
-export async function runProactive(db: Db, now: Date, force?: Force): Promise<string[]> {
+/** Called after a message is saved, to also push it to the phone. Failures never stop the message. */
+export type PushHook = (kind: string, text: string) => Promise<unknown>
+
+export async function runProactive(db: Db, now: Date, force?: Force, push?: PushHook): Promise<string[]> {
   const did: string[] = []
   const today = londonResetDayKey(now)
   const minutes = londonMinutes(now)
-  const quiet = minutes < QUIET_BEFORE || minutes >= QUIET_FROM
+  const profileRaw = (await db.getDoc('assistant/profile'))?.data
+  const quietBefore = toMinutes(parseTime(profileRaw?.quietBefore) ?? toHHMM(QUIET_BEFORE))
+  const quietFrom = toMinutes(parseTime(profileRaw?.quietFrom) ?? toHHMM(QUIET_FROM))
+  const quiet = minutes < quietBefore || minutes >= quietFrom
   if (quiet && !force) return did
 
   const { s } = await loadSchedule(db)
   // New logical day: counters start again.
-  const counters: Schedule = s.day === today ? { ...s } : { ...s, day: today, sentToday: 0, remindersToday: 0, reminded: [] }
+  const counters: Schedule = s.day === today ? { ...s } : { ...s, day: today, sentToday: 0, remindersToday: 0, reminded: [], checked: [] }
   const edits: { path: string[]; value: unknown }[] = []
   if (s.day !== today) {
-    edits.push({ path: ['day'], value: today }, { path: ['sentToday'], value: 0 }, { path: ['remindersToday'], value: 0 }, { path: ['reminded'], value: [] })
+    edits.push({ path: ['day'], value: today }, { path: ['sentToday'], value: 0 }, { path: ['remindersToday'], value: 0 }, { path: ['reminded'], value: [] }, { path: ['checked'], value: [] })
   }
   const save = async () => {
     if (edits.length) await db.update('assistant/schedule', edits)
@@ -205,21 +245,55 @@ export async function runProactive(db: Db, now: Date, force?: Force): Promise<st
   }
 
   const state = ((await db.getDoc('joelhq/state'))?.data ?? {}) as Record<string, unknown>
-  const tasks = asTasks(state.tasks)
-  const todayTasks = tasks.filter((t) => (t.date ?? today) === today && !t.skipped)
+  let tasks = asTasks(state.tasks)
+  let todayTasks = tasks.filter((t) => (t.date ?? today) === today && !t.skipped)
+  const [routines, goals] = await Promise.all([loadRoutines(db), loadGoals(db)])
+  const monday = mondayOfKey(today)
 
   // Morning briefing
   const morningDue = force === 'morning' || (minutes >= MORNING_FROM && minutes < MORNING_UNTIL && counters.morningDay !== today)
   if (morningDue) {
     const plans = await db.list('plans')
     const habits = habitsFromPlans(plans, today).filter((h) => !habitDone(state, h.id, today))
-    const { profile, isSet } = normaliseProfile((await db.getDoc('assistant/profile'))?.data)
+    const { profile, isSet } = normaliseProfile(profileRaw)
+
+    // Routines due today: "add" ones go straight on the list, "ask" ones become a question.
+    const asks: string[] = []
+    const askChips: QuickItem[] = []
+    for (const r of routines.filter((x) => routineOn(x, today))) {
+      if (todayTasks.some((t) => norm(String(t.t ?? '')).includes(norm(r.name)))) continue
+      if (r.mode === 'add') {
+        await applyAction(db, { type: 'add_task', text: r.name, date: today, time: r.time }, now)
+        todayTasks = [...todayTasks, { id: `r_${r.id}`, t: r.name, time: r.time, date: today, done: false }]
+      } else if (askChips.length < 4 && (force || toMinutes(r.time) > minutes + 30)) {
+        const g = `r${r.id}`
+        asks.push(`${r.name} at ${r.time} today. Want it on your list?`)
+        askChips.push(
+          { id: `${g}y`, group: g, label: `Yes, add ${r.name}`, kind: 'task', date: today, text: r.name, time: r.time },
+          { id: `${g}n`, group: g, label: 'Not this time', kind: 'dismiss', date: today },
+        )
+      }
+    }
 
     // Fixed things today, and the gaps between them.
     const timedAll = todayTasks.filter((t) => timeToMinutes(t.time) !== null)
     const blocks = busyBlocks(timedAll, profile)
     const earliest = Math.max(toMinutes(profile.wake), force ? 0 : Math.ceil((minutes + 5) / 15) * 15)
-    const gaps = freeGaps(blocks, earliest, toMinutes(profile.bed), 60)
+    let gaps = freeGaps(blocks, earliest, toMinutes(profile.bed), 60)
+
+    // Goals that are falling behind this week get a slot first.
+    const goalLines: string[] = []
+    const goalChips: QuickItem[] = []
+    for (const g of goals) {
+      const done = sessionsThisWeek(g, tasks, monday)
+      const planned = todayTasks.some((t) => norm(String(t.t ?? '')).includes(norm(g.name)))
+      if (planned || goalChips.length >= 2 || !needsNudge(g, done, today)) continue
+      const slot = pickSlot(gaps, g.minutes, earliest)
+      if (!slot) continue
+      gaps = takeFromGaps(gaps, slot)
+      goalLines.push(`${g.name}: ${done} of ${g.perWeek} this week. I would do ${g.minutes} min at ${clock(slot.start)}.`)
+      goalChips.push({ id: `g${goalChips.length}`, label: `Add ${clock(slot.start)} ${g.name}`, kind: 'task', date: today, text: `${g.name} session`, time: clock(slot.start), minutes: g.minutes })
+    }
 
     // Do not suggest a habit that is already on today's list.
     const todayText = todayTasks.map((t) => norm(String(t.t ?? '')))
@@ -246,8 +320,11 @@ export async function runProactive(db: Db, now: Date, force?: Force): Promise<st
       otherHabits: habits.map((h) => h.name).filter((n) => !placed.has(n)),
       unknownYesterday: unknown,
       assumedShift: workShown ? profile.workHours : null,
+      asks,
+      goalLines,
     })
-    const quick: QuickItem[] = suggestions.map((x, i) => ({
+    const quick: QuickItem[] = [...askChips, ...goalChips]
+    quick.push(...suggestions.map((x, i): QuickItem => ({
       id: `q${i}`,
       label: `Add ${clock(x.start)} ${x.label}`,
       kind: 'task',
@@ -255,12 +332,12 @@ export async function runProactive(db: Db, now: Date, force?: Force): Promise<st
       text: x.label,
       time: clock(x.start),
       minutes: x.end - x.start,
-    }))
+    })))
     edits.push({ path: ['morningDay'], value: today })
     if (workShown) edits.push({ path: ['hintShown'], value: true })
     bump()
     await save()
-    await send(db, now, 'morning', text, quick)
+    await deliver(db, now, 'morning', text, quick, push)
     did.push('morning')
   }
 
@@ -285,24 +362,116 @@ export async function runProactive(db: Db, now: Date, force?: Force): Promise<st
     edits.push({ path: ['reminded'], value: [...reminded] }, { path: ['remindersToday'], value: remindersToday })
     bump()
     await save()
-    await send(db, now, 'reminder', reminderText(x.t, Math.max(0, x.away)))
+    const startMin = timeToMinutes(x.t.time) ?? minutes
+    const later = startMin + 30
+    const chips: QuickItem[] = [
+      { id: 'done', group: 'r', label: 'Done', kind: 'task_done', date: today, taskId: String(x.t.id), text: String(x.t.t ?? 'task') },
+    ]
+    if (later < 1440 && later < quietFrom) {
+      chips.push({ id: 'later', group: 'r', label: '30 min later', kind: 'task_later', date: today, taskId: String(x.t.id), text: String(x.t.t ?? 'task'), time: clock(later) })
+    }
+    await deliver(db, now, 'reminder', reminderText(x.t, Math.max(0, x.away)), chips, push)
     did.push(`reminder:${x.t.id}`)
     if (force) break
   }
 
+  // "Did you do it?" for goal sessions that have finished. At most one a day, and never crowding out the evening check-in.
+  const goalOf = (t: TaskLike): Goal | undefined => goals.find((g) => norm(String(t.t ?? '')).includes(norm(g.name)))
+  const checked = new Set(strArr(counters.checked))
+  const finished = todayTasks
+    .filter((t) => t.id && !t.done && !t.skipped && !checked.has(String(t.id)))
+    .map((t) => ({ t, g: goalOf(t), start: timeToMinutes(t.time) }))
+    .filter((x): x is { t: TaskLike; g: Goal; start: number } => !!x.g && x.start !== null)
+    .filter((x) => {
+      const own = Number((x.t as { minutes?: number }).minutes)
+      const length = Number.isFinite(own) && own >= 5 ? own : x.g.minutes
+      return force === 'checkin' || minutes >= x.start + length + 20
+    })
+  if (finished.length && (force === 'checkin' || ((counters.sentToday ?? 0) <= 2 && checked.size === 0))) {
+    const x = finished[0]
+    checked.add(String(x.t.id))
+    edits.push({ path: ['checked'], value: [...checked] })
+    bump()
+    await save()
+    const g = `c${x.t.id}`
+    const chips: QuickItem[] = [
+      { id: 'yes', group: g, label: 'Yes, done', kind: 'task_done', date: today, taskId: String(x.t.id), goalId: x.g.id, text: x.g.name },
+      { id: 'no', group: g, label: 'Not today', kind: 'task_skip', date: today, taskId: String(x.t.id), text: x.g.name },
+    ]
+    await deliver(db, now, 'checkin', `Did you get your ${x.g.name} session done?`, chips, push)
+    did.push('checkin')
+  }
+
+  // Sunday evening: the week ahead, with sessions for each goal placed in the free gaps.
+  const nextMonday = addDaysToKey(monday, 7)
+  const weeklyDue =
+    force === 'weekly' ||
+    (weekdayOfKey(today) === 0 && minutes >= WEEKLY_FROM && minutes < WEEKLY_UNTIL && counters.weeklyFor !== nextMonday && (counters.sentToday ?? 0) <= 2)
+  if (weeklyDue) {
+    const { profile } = normaliseProfile(profileRaw)
+    const week = Array.from({ length: 7 }, (_, i) => addDaysToKey(nextMonday, i))
+    const dayData = week.map((date) => {
+      const fixed = tasks.filter((t) => t.date === date && !t.skipped && timeToMinutes(t.time) !== null)
+      const rs = routines.filter((r) => routineOn(r, date) && !fixed.some((t) => norm(String(t.t ?? '')).includes(norm(r.name))))
+      const items = [
+        ...fixed.map((t) => ({ at: timeToMinutes(t.time) as number, label: String(t.t ?? '').trim() })),
+        ...rs.map((r) => ({ at: toMinutes(r.time), label: r.mode === 'ask' ? `${r.name}?` : r.name })),
+      ].sort((a, b) => a.at - b.at)
+      const blocks: Block[] = busyBlocks(
+        [...fixed, ...rs.filter((r) => r.mode === 'add').map((r) => ({ t: r.name, time: r.time }))],
+        profile,
+      )
+      return { date, items, blocks }
+    })
+    const lines: string[] = ['Your week ahead.']
+    for (const d of dayData) {
+      if (d.items.length) lines.push(`${weekdayName(d.date).slice(0, 3).replace(/^./, (c) => c.toUpperCase())}: ${d.items.map((i) => `${i.label} ${clock(i.at)}`).join(' · ')}`)
+    }
+    if (lines.length === 1) lines.push('Nothing fixed yet.')
+    const chips: QuickItem[] = []
+    for (const g of goals) {
+      const picks = planWeek(dayData, g, toMinutes(profile.wake), toMinutes(profile.bed))
+      if (picks.length) {
+        lines.push('', `${g.name}: ${g.perWeek} sessions of ${g.minutes} min. I would do ${picks.map((p) => `${weekdayName(week[p.day]).slice(0, 3)} ${clock(p.slot.start)}`).join(', ')}.`)
+        for (const p of picks) {
+          if (chips.length >= 6) break
+          chips.push({
+            id: `w${chips.length}`,
+            label: `${weekdayName(week[p.day]).slice(0, 3)} ${clock(p.slot.start)} ${g.name}`,
+            kind: 'task',
+            date: week[p.day],
+            text: `${g.name} session`,
+            time: clock(p.slot.start),
+            minutes: g.minutes,
+          })
+        }
+      }
+    }
+    edits.push({ path: ['weeklyFor'], value: nextMonday })
+    bump()
+    await save()
+    await deliver(db, now, 'weekly', lines.join('\n'), chips, push)
+    did.push('weekly')
+  }
+
   // Evening check-in
-  const eveningDue = force === 'evening' || (minutes >= EVENING_FROM && minutes < EVENING_UNTIL && counters.eveningDay !== today)
+  const eveningDue = force === 'evening' || (minutes >= EVENING_FROM && minutes < Math.min(EVENING_UNTIL, quietFrom) && counters.eveningDay !== today)
   if (eveningDue) {
     const plans = await db.list('plans')
     const habits = habitsFromPlans(plans, today).filter((h) => !habitDone(state, h.id, today))
     edits.push({ path: ['eveningDay'], value: today })
-    if (habits.length) {
+    const goalChips: QuickItem[] = goals
+      .filter((g) => sessionsThisWeek(g, tasks, monday) < g.perWeek && !g.done.includes(today))
+      .filter((g) => !tasks.some((t) => t.date === today && t.done && norm(String(t.t ?? '')).includes(norm(g.name))))
+      .slice(0, 2)
+      .map((g, i): QuickItem => ({ id: `g${i}`, label: `Did ${g.name}`, kind: 'goal_done', date: today, goalId: g.id, text: g.name }))
+    if (habits.length || goalChips.length) {
       edits.push(
         { path: ['askedDay'], value: today },
         { path: ['askedIds'], value: habits.map((h) => h.id) },
         { path: ['askedNames'], value: habits.map((h) => h.name) },
       )
-      const quick: QuickItem[] = habits.slice(0, 6).map((h, i) => ({
+      const quick: QuickItem[] = habits.slice(0, 6).map((h, i): QuickItem => ({
         id: `q${i}`,
         label: h.name,
         kind: 'habit',
@@ -310,12 +479,13 @@ export async function runProactive(db: Db, now: Date, force?: Force): Promise<st
         habitId: h.id,
         habitName: h.name,
       }))
+      quick.push(...goalChips)
       if (habits.length >= 2) {
         quick.push({ id: 'all', label: 'Did all', kind: 'all_habits', date: today, habits: habits.map((h) => ({ id: h.id, name: h.name })) })
       }
       bump()
       await save()
-      await send(db, now, 'evening', eveningText(), quick)
+      await deliver(db, now, 'evening', eveningText(), quick, push)
       did.push('evening')
     } else {
       await save() // everything is done, so there is nothing to ask

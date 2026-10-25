@@ -11,6 +11,8 @@ import { parseTime, resolveDate, weekdayName } from './dates'
 import type { Db } from './firestore'
 import { addDaysToKey, londonResetDayKey } from './london'
 import { buildContext, isSensitive, type ResolveIndex } from './privacy'
+import { handleKnowledgeCommand } from './knowledge'
+import { handleRoutineCommand } from './routines'
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -104,6 +106,14 @@ export async function handleMessage(db: Db, runAi: RunAi, rawText: string, now: 
   const set = await handleSet(db, text)
   if (set) return set
 
+  // 0a. What I know about you, and your mode: "know: ...", "what do you know", "forget 2", "set mode both". No AI.
+  const known = await handleKnowledgeCommand(db, text, now)
+  if (known !== null) return { reply: known, summary: [], warnings: [] }
+
+  // 0b. Goals and routines: "goal: Masters 4x/week", "routine: football every monday 20:00". No AI.
+  const cmd = await handleRoutineCommand(db, text, londonResetDayKey(now))
+  if (cmd) return { reply: cmd.reply, summary: [], warnings: [] }
+
   // 1. Manual commands: no AI, so nothing leaves HQ.
   const manual = parseManual(text, now)
   if (manual) {
@@ -139,6 +149,14 @@ export async function handleMessage(db: Db, runAi: RunAi, rawText: string, now: 
 }
 
 async function handleSet(db: Db, text: string): Promise<AskResult | null> {
+  const q = text.match(/^set\s+quiet\s+(\S+)\s+(\S+)$/i)
+  if (q) {
+    const from = parseTime(q[1])
+    const until = parseTime(q[2])
+    if (!from || !until) return { reply: 'Try "set quiet 22:30 07:30": no messages from the first time until the second.', summary: [], warnings: [] }
+    await db.update('assistant/profile', [{ path: ['quietFrom'], value: from }, { path: ['quietBefore'], value: until }])
+    return { reply: `Got it. No messages from ${from} until ${until}.`, summary: [], warnings: [] }
+  }
   const m = text.match(/^set\s+(shift|wake|bed)\s+(.+)$/i)
   if (!m) return null
   const what = m[1].toLowerCase()
@@ -251,7 +269,11 @@ export async function undo(db: Db, activityId: string, now: Date) {
 export interface QuickItem {
   id: string
   label: string
-  kind: 'habit' | 'all_habits' | 'task'
+  kind: 'habit' | 'all_habits' | 'task' | 'task_done' | 'task_skip' | 'task_later' | 'goal_done' | 'dismiss'
+  /** Buttons in one group answer the same question: answering one closes them all. */
+  group?: string
+  taskId?: string
+  goalId?: string
   date: string
   habitId?: string
   habitName?: string
@@ -282,7 +304,16 @@ export async function quickAction(db: Db, messageId: string, quickId: string, no
     if (item.minutes) a.minutes = item.minutes
     actions.push(a)
   }
-  if (actions.length === 0) throw new HttpError(400, 'Nothing to do for this button')
+  else if (item.kind === 'task_done' && item.taskId) {
+    actions.push({ type: 'complete_task', taskId: item.taskId, text: item.text ?? 'task', goalId: item.goalId, date: item.date })
+  } else if (item.kind === 'task_skip' && item.taskId) {
+    actions.push({ type: 'skip_task', taskId: item.taskId, text: item.text ?? 'task' })
+  } else if (item.kind === 'task_later' && item.taskId && item.time) {
+    actions.push({ type: 'reschedule_task', taskId: item.taskId, text: item.text ?? 'task', time: item.time })
+  } else if (item.kind === 'goal_done' && item.goalId) {
+    actions.push({ type: 'log_goal', goalId: item.goalId, name: item.text ?? 'goal', date: item.date })
+  }
+  if (actions.length === 0 && item.kind !== 'dismiss') throw new HttpError(400, 'Nothing to do for this button')
 
   const undo: UndoStep[] = []
   const applied: string[] = []
@@ -291,10 +322,11 @@ export async function quickAction(db: Db, messageId: string, quickId: string, no
     applied.push(describe(a))
   }
   const activityId = crypto.randomUUID()
-  await db.set(`activityLog/${activityId}`, { id: activityId, messageId, at: now.getTime(), applied, undo, undone: false })
+  if (actions.length) await db.set(`activityLog/${activityId}`, { id: activityId, messageId, at: now.getTime(), applied, undo, undone: false })
 
   // Mark the tapped button (and, for "all", every habit button) as done.
   const doneIds = new Set([item.id])
+  if (item.group) for (const q of items) if (q.group === item.group) doneIds.add(q.id)
   if (item.kind === 'all_habits') for (const q of items) if (q.kind === 'habit') doneIds.add(q.id)
   await db.update(`messages/${messageId}`, [
     { path: ['quick'], value: items.map((q) => (doneIds.has(q.id) ? { ...q, done: true } : q)) },

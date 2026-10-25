@@ -63,6 +63,8 @@
 .hm-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--mint); margin-right: 6px; }
 .hm-dot.off { background: var(--dim); }
 
+.hm-health { background: #402a12; color: #ffd9ac; border-radius: 14px; padding: 12px 14px; font-size: 13px; line-height: 1.45; }
+
 /* ---------- Sections ---------- */
 .sp { max-width: 720px; margin: 0 auto; padding: 28px 20px 40px; display: flex; flex-direction: column; gap: 16px; }
 .sp-top { display: flex; flex-direction: column; gap: 6px; }
