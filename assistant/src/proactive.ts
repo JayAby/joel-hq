@@ -43,7 +43,7 @@ export const QUIET_BEFORE = 7 * 60 + 30
 export const QUIET_FROM = 22 * 60 + 30
 export const REMINDER_LEAD = 10
 export const REMINDER_GRACE = 5
-export const MAX_REMINDERS_PER_DAY = 2
+export const MAX_REMINDERS_PER_DAY = 10
 export const MAX_PER_DAY = 4
 export const SHIFTS_FROM = 16 * 60
 export const REVIEW_FROM = 19 * 60 + 30
@@ -369,12 +369,11 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
     .sort((a, b) => a.away - b.away)
 
   for (const x of due) {
-    if (!force && (remindersToday >= MAX_REMINDERS_PER_DAY || (counters.sentToday ?? 0) >= MAX_PER_DAY)) break
+    if (!force && remindersToday >= MAX_REMINDERS_PER_DAY) break
     reminded.add(`${x.t.id}@${today}`)
     remindersToday++
     counters.remindersToday = remindersToday
     edits.push({ path: ['reminded'], value: [...reminded] }, { path: ['remindersToday'], value: remindersToday })
-    bump()
     await save()
     const startMin = timeToMinutes(x.t.time) ?? minutes
     const later = startMin + 30

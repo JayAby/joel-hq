@@ -270,6 +270,8 @@ export default function TodayHome({
         </div>
       )}
 
+      <div className="hm-cols">
+      <div className="hm-col">
       <section className="hm-card hm-next" aria-label="Next up">
         <div className="hm-eyebrow">
           <span>{view.current ? 'Now' : 'Next'}</span>
@@ -389,6 +391,8 @@ export default function TodayHome({
         )}
       </section>
 
+      </div>
+      <div className="hm-col">
       <button className="hm-week" onClick={() => setWeekOpen(true)} aria-label="Open this week">
         {weekDays.map((d) => (
           <span key={d.key} className={`hm-wd${d.key === today ? ' today' : ''}`}>
@@ -457,6 +461,9 @@ export default function TodayHome({
           </ul>
         </section>
       )}
+
+      </div>
+      </div>
 
       <form
         className="hm-askbar"

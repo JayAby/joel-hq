@@ -116,6 +116,10 @@ export async function handleMessage(db: Db, runAi: RunAi, rawText: string, now: 
   const cmd = await handleRoutineCommand(db, text, londonResetDayKey(now))
   if (cmd) return { reply: cmd.reply, summary: [], warnings: [] }
 
+  // 0b2. "shift all my to do by an hour": moves today's (or tomorrow's) timed tasks. No AI.
+  const mv = parseMove(text)
+  if (mv) return handleMove(db, mv, now)
+
   // 0c. Shifts: "shifts: mon wed 9-3, fri 12-6" adds them to the week ahead. No AI.
   const sh = text.match(/^shifts?\s*:\s*(.*)$/i)
   if (sh) return handleShifts(db, sh[1], now)
@@ -152,6 +156,72 @@ export async function handleMessage(db: Db, runAi: RunAi, rawText: string, now: 
   // 4. Validate, then park as a proposal.
   const { actions, warnings } = validateActions(parsed.actions, index as ResolveIndex, now)
   return saveProposal(db, now, text, parsed.reply, actions, warnings)
+}
+
+interface Move {
+  minutes: number
+  which: 'today' | 'tomorrow'
+}
+
+/** "shift all my to do by an hour", "push tomorrow's tasks back 30 min", "move everything 2 hours earlier". */
+export function parseMove(raw: string): Move | null {
+  const t = raw
+    .toLowerCase()
+    .replace(/[’']/g, '')
+    .replace(/^(?:hey[, ]+)?(?:(?:can|could|would|will) you |please |pls |i want you to |i need you to )+/, '')
+    .replace(/[ ,.!]*(?:please|pls|thanks|thank you)?[ .!]*$/, '')
+    .trim()
+  if (!/^(shift|move|push|delay|bring|put)\b/.test(t)) return null
+  if (!/(to ?do|todo|tasks?|everything|schedule|plans?|day)/.test(t)) return null
+  const m = t.match(/(half an hour|an hour|a hour|(\d+(?:\.\d+)?)\s*(h|hr|hrs|hours?|m|min|mins|minutes?))/)
+  if (!m) return null
+  let minutes: number
+  if (m[1] === 'half an hour') minutes = 30
+  else if (m[1] === 'an hour' || m[1] === 'a hour') minutes = 60
+  else minutes = /^h/.test(m[3]) ? Number(m[2]) * 60 : Number(m[2])
+  if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 12 * 60) return null
+  if (/(earlier|back|forward|before|sooner|minus|-\s*\d)/.test(t)) minutes = -minutes
+  return { minutes: Math.round(minutes), which: /tomorrow/.test(t) ? 'tomorrow' : 'today' }
+}
+
+function shiftTimeText(time: string, delta: number): string | null {
+  let ok = true
+  const out = time.replace(/\b(\d{1,2}):(\d{2})\b/g, (_, h, mi) => {
+    const total = Number(h) * 60 + Number(mi) + delta
+    if (total < 0 || total >= 1440) {
+      ok = false
+      return _
+    }
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+  })
+  return ok && out !== time ? out : null
+}
+
+async function handleMove(db: Db, mv: Move, now: Date): Promise<AskResult> {
+  const today = londonResetDayKey(now)
+  const day = mv.which === 'tomorrow' ? addDaysToKey(today, 1) : today
+  const state = (await db.getDoc('joelhq/state'))?.data ?? {}
+  const tasks = (Array.isArray(state.tasks) ? state.tasks : []) as { id?: string; t?: string; time?: string; date?: string; done?: boolean; skipped?: boolean }[]
+  const actions: Action[] = []
+  let left = 0
+  for (const t of tasks) {
+    if (!t.id || t.done || t.skipped || typeof t.time !== 'string' || (t.date ?? today) !== day) continue
+    const next = shiftTimeText(t.time, mv.minutes)
+    if (next) actions.push({ type: 'reschedule_task', taskId: t.id, text: String(t.t ?? 'task'), time: next })
+    else left++
+  }
+  const word = `${Math.abs(mv.minutes) % 60 === 0 ? `${Math.abs(mv.minutes) / 60}h` : `${Math.abs(mv.minutes)} min`} ${mv.minutes > 0 ? 'later' : 'earlier'}`
+  if (actions.length === 0) return { reply: `I found no timed tasks for ${mv.which} to move. Only unfinished tasks with a time like 17:00 can be shifted.`, summary: [], warnings: [] }
+  const undo: UndoStep[] = []
+  const applied: string[] = []
+  for (const a of actions) {
+    undo.push(await applyAction(db, a, now))
+    applied.push(describe(a))
+  }
+  const activityId = crypto.randomUUID()
+  await db.set(`activityLog/${activityId}`, { id: activityId, at: now.getTime(), applied, undo, undone: false })
+  const note = left ? ` ${left} could not move without leaving the day, so I left ${left === 1 ? 'it' : 'them'}.` : ''
+  return { reply: `Moved ${actions.length} task${actions.length === 1 ? '' : 's'} ${word}.${note} You can undo it from Home.`, summary: applied, warnings: [] }
 }
 
 async function handleShifts(db: Db, body: string, now: Date): Promise<AskResult> {
