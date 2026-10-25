@@ -6,7 +6,8 @@ import { habitWeekCount, isHabitDoneToday } from '../plans'
 import type { Health } from '../hooks/useAssistantHealth'
 import { useAssistantInbox } from '../hooks/useAssistantInbox'
 import { quickAction, undoActivity } from '../assistantApi'
-import AssistantFace, { type Mood } from './AssistantFace'
+import HeaderScene from './HeaderScene'
+import { quoteFor, sceneSeed } from '../quotes'
 import CheckIn from './CheckIn'
 import {
   busyBlocks,
@@ -164,11 +165,6 @@ export default function TodayHome({
     return !!b && logical(b.end) < nowL
   })
   const needs = inbox.needs
-  let mood: Mood = 'happy'
-  if (health.status === 'stale' || health.status === 'error' || overdue) mood = 'concerned'
-  else if (view.open.length === 0 && view.doneCount > 0) mood = 'proud'
-  else if (needs.length > 0) mood = 'neutral'
-
   let headline: string
   if (view.current) headline = `${view.current.t.t} until ${toHHMM(view.current.block.end)}.`
   else if (view.next) headline = `${view.next.t.t} is next, in ${untilText(Math.max(0, logical(view.next.block.start) - nowL))}. ${view.freeLabel}.`
@@ -237,16 +233,17 @@ export default function TodayHome({
 
   return (
     <div className="hm">
-      <header className={`hm-top ${sky.key}`} style={{ background: sky.color }}>
-        <div className="hm-top-row">
-          <div>
+      <header className={`hm-top ${sky.key}`}>
+        <HeaderScene sky={sky.key} seed={sceneSeed(today)} />
+        <div className="hm-top-in">
+          <div className="hm-top-row">
             <div className="hm-clock">{now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
             <div className="hm-date">{now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
           </div>
-          <AssistantFace mood={mood} size={64} color="rgba(255,255,255,0.55)" />
+          <h1 className="hm-greeting">{greetingFor(now)}, Joel.</h1>
+          <p className="hm-headline">{headline}</p>
+          <p className="hm-quote">“{quoteFor(today)}”</p>
         </div>
-        <h1 className="hm-greeting">{greetingFor(now)}, Joel.</h1>
-        <p className="hm-headline">{headline}</p>
       </header>
 
       {(health.status === 'stale' || health.status === 'error') && (
