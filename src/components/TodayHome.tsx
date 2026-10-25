@@ -228,7 +228,7 @@ export default function TodayHome({
     })
   }
 
-  const shown = view.open.slice(0, 5)
+  const shown = view.open.slice(0, 3)
   const hidden = view.open.length - shown.length
 
   return (
@@ -411,7 +411,7 @@ export default function TodayHome({
             <button className="hm-link" onClick={onOpenAssistant}>Open chat</button>
           </div>
           <ul className="hm-done">
-            {inbox.done.map((d) => (
+            {inbox.done.slice(0, 3).map((d) => (
               <li key={d.id}>
                 <span className={`hm-done-text${d.undone ? ' undone' : ''}`}>{d.text}</span>
                 {d.undone ? (

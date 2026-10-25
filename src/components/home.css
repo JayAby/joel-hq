@@ -176,3 +176,20 @@
 .hm-top .hm-date { opacity: .9; margin: 0; text-align: right; }
 .hm-top.night, .hm-top.morning, .hm-top.afternoon, .hm-top.evening { color: #fff; }
 .hm-quote { margin: 4px 0 0; font-size: 13px; font-style: italic; opacity: .9; line-height: 1.4; }
+
+/* Phone: compact header, tighter spacing, rounder softer cards */
+@media (max-width: 899px) {
+  .hm { padding: 0 16px 24px; gap: 14px; }
+  .hm-top { margin: 0 -16px 2px; border-radius: 0 0 28px 28px; }
+  .hm-top-in { padding: calc(14px + env(safe-area-inset-top)) 20px 18px; gap: 6px; }
+  .hm-clock { font-size: 30px; }
+  .hm-top .hm-date { font-size: 11px; }
+  .hm-top .hm-greeting { font-size: 21px; margin-top: 2px; }
+  .hm-headline { font-size: 14px; line-height: 1.35; }
+  .hm-quote { font-size: 12px; margin: 2px 0 0; opacity: .8; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .hm-card, .hm-need, .hm-tasks, .hm-done { border-radius: 22px; }
+  .hm-card { padding: 16px; background: linear-gradient(180deg, var(--surface), #0f121a); }
+  .hm-hero-time { font-size: 26px; }
+  .hm-askbar { bottom: calc(80px + env(safe-area-inset-bottom)); margin: 0 -4px; }
+  .hm-foot { padding-bottom: 70px; }
+}
