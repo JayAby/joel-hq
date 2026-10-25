@@ -9,6 +9,7 @@ import { quickAction, undoActivity } from '../assistantApi'
 import HeaderScene from './HeaderScene'
 import { quoteFor, sceneSeed } from '../quotes'
 import CheckIn from './CheckIn'
+import WeekView, { bookedMinutes, HEAVY_MINUTES, tasksOn } from './WeekView'
 import {
   busyBlocks,
   ceil15,
@@ -95,6 +96,7 @@ export default function TodayHome({
   const [busy, setBusy] = useState<Record<string, boolean>>({})
   const [actionError, setActionError] = useState<string | null>(null)
   const [checkIn, setCheckIn] = useState(false)
+  const [weekOpen, setWeekOpen] = useState(false)
   const [ask, setAsk] = useState('')
 
   const nowMin = now.getHours() * 60 + now.getMinutes()
@@ -196,6 +198,16 @@ export default function TodayHome({
       setBusy((b) => ({ ...b, [id]: false }))
     }
   }
+
+  const weekDays = (() => {
+    const [y, m, d] = mondayOf(now).split('-').map(Number)
+    return Array.from({ length: 7 }, (_, i) => {
+      const dt = new Date(y, m - 1, d + i)
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+      const list = tasksOn(tasks, key, today)
+      return { key, dow: dt.toLocaleDateString('en-GB', { weekday: 'narrow' }), num: dt.getDate(), count: list.length, work: list.some((t) => /^\s*(work|shift)\b/i.test(t.t)), heavy: bookedMinutes(list, profile) >= HEAVY_MINUTES }
+    })
+  })()
 
   function submitAsk() {
     const text = ask.trim()
@@ -373,6 +385,16 @@ export default function TodayHome({
         )}
       </section>
 
+      <button className="hm-week" onClick={() => setWeekOpen(true)} aria-label="Open this week">
+        {weekDays.map((d) => (
+          <span key={d.key} className={`hm-wd${d.key === today ? ' today' : ''}`}>
+            <span className="hm-wd-dow">{d.dow}</span>
+            <span className="hm-wd-num">{d.num}</span>
+            <span className={`hm-wd-dot${d.heavy ? ' heavy' : d.work ? ' work' : d.count ? ' some' : ''}`} />
+          </span>
+        ))}
+      </button>
+
       <button className="hm-checkin" onClick={() => setCheckIn(true)}>
         <FiCheck /> Check in: what did you get done?
       </button>
@@ -446,6 +468,8 @@ export default function TodayHome({
           <FiSend size={18} />
         </button>
       </form>
+
+      {weekOpen && <WeekView now={now} today={today} tasks={tasks} profile={profile} onClose={() => setWeekOpen(false)} />}
 
       {checkIn && (
         <CheckIn

@@ -4,6 +4,7 @@
 import { parseTime, weekdayOfKey } from './dates'
 import type { Db } from './firestore'
 import { addDaysToKey } from './london'
+import type { Action } from './actions'
 
 export interface Shift {
   day: number // 0 = Sunday
@@ -64,4 +65,24 @@ export async function loadLastWeek(db: Db): Promise<Shift[]> {
   const doc = await db.getDoc('assistant/shifts')
   const raw = Array.isArray(doc?.data.lastWeek) ? (doc!.data.lastWeek as Shift[]) : []
   return raw.filter((s) => typeof s?.day === 'number' && typeof s?.start === 'string' && typeof s?.end === 'string')
+}
+
+interface TaskLike {
+  t?: unknown
+  date?: unknown
+  time?: unknown
+  skipped?: unknown
+}
+
+/** Tasks to add for these shifts, from `base` onward (7 days). Skips ones already on the list. */
+export function shiftActions(shifts: Shift[], base: string, tasks: TaskLike[]): Action[] {
+  const out: Action[] = []
+  for (const s of shifts) {
+    const date = nextDate(base, s.day)
+    const time = `${s.start}-${s.end}`
+    const exists = tasks.some((t) => t.date === date && !t.skipped && /^\s*(work|shift)\b/i.test(String(t.t ?? '')) && String(t.time ?? '').startsWith(s.start))
+    if (exists) continue
+    out.push({ type: 'add_task', text: 'Work', date, time, minutes: shiftMinutes(s) })
+  }
+  return out
 }

@@ -18,6 +18,7 @@ import { addDaysToKey, londonMinutes, londonResetDayKey } from './london'
 import type { QuickItem } from './assistant'
 import { applyAction } from './actions'
 import { parseTime, weekdayOfKey, weekdayName } from './dates'
+import { describeShift, loadLastWeek } from './shifts'
 import { busyBlocks, freeGaps, normaliseProfile, parseSpan, suggest, toHHMM, toMinutes, type Block, type Slot, type Suggestion } from './planner'
 import {
   loadGoals,
@@ -43,6 +44,7 @@ export const REMINDER_LEAD = 10
 export const REMINDER_GRACE = 5
 export const MAX_REMINDERS_PER_DAY = 2
 export const MAX_PER_DAY = 4
+export const SHIFTS_FROM = 16 * 60
 export const WEEKLY_FROM = 18 * 60
 export const WEEKLY_UNTIL = 21 * 60
 const DAY_RESET = 6 * 60
@@ -81,9 +83,11 @@ export interface Schedule {
   checked?: string[]
   /** Monday of the week the Sunday plan was sent for. */
   weeklyFor?: string
+  /** Monday of the week the shifts question was asked for. */
+  shiftsFor?: string
 }
 
-export type Force = 'morning' | 'evening' | 'reminder' | 'checkin' | 'weekly'
+export type Force = 'morning' | 'evening' | 'reminder' | 'checkin' | 'weekly' | 'shifts'
 
 const asTasks = (v: unknown): TaskLike[] => (Array.isArray(v) ? (v as TaskLike[]) : [])
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
@@ -402,6 +406,34 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
     did.push('checkin')
   }
 
+  // Sunday afternoon: "same shifts as last week?" (only if you work).
+  const nextMon = addDaysToKey(monday, 7)
+  const mode = profileRaw?.mode
+  const worksMaybe = mode !== 'studying' && mode !== 'between'
+  const shiftsDue = force === 'shifts' || (weekdayOfKey(today) === 0 && minutes >= SHIFTS_FROM && minutes < WEEKLY_UNTIL && counters.shiftsFor !== nextMon && (counters.sentToday ?? 0) <= 2)
+  if (shiftsDue && worksMaybe) {
+    const last = await loadLastWeek(db)
+    const nextWeek = Array.from({ length: 7 }, (_, i) => addDaysToKey(nextMon, i))
+    const already = tasks.some((t) => nextWeek.includes(String(t.date)) && /^\s*(work|shift)\b/i.test(String(t.t ?? '')))
+    edits.push({ path: ['shiftsFor'], value: nextMon })
+    bump()
+    await save()
+    if (!already) {
+      if (last.length > 0) {
+        const q = 'Same shifts as last week?'
+        await deliver(db, now, 'weekly', `${q}\n${last.map(describeShift).join('\n')}\n\nOr type new ones: shifts: tue thu 9-3, sat 12-6`, [
+          { id: 'sy', group: 'sh', prompt: `${q} ${last.map(describeShift).join(', ')}`, label: 'Yes, same', kind: 'shifts_same', date: nextMon },
+          { id: 'sn', group: 'sh', label: 'No shifts / I will type them', kind: 'dismiss', date: nextMon },
+        ], push)
+      } else {
+        await deliver(db, now, 'weekly', 'Do you work shifts next week? Type them like this:\nshifts: mon wed 9-3, fri 12-6', [
+          { id: 'sn', group: 'sh', prompt: 'Any shifts next week? Type: shifts: mon wed 9-3, fri 12-6', label: 'No shifts this week', kind: 'dismiss', date: nextMon },
+        ], push)
+      }
+      did.push('shifts')
+    }
+  }
+
   // Sunday evening: the week ahead, with sessions for each goal placed in the free gaps.
   const nextMonday = addDaysToKey(monday, 7)
   const weeklyDue =
@@ -428,6 +460,10 @@ export async function runProactive(db: Db, now: Date, force?: Force, push?: Push
       if (d.items.length) lines.push(`${weekdayName(d.date).slice(0, 3).replace(/^./, (c) => c.toUpperCase())}: ${d.items.map((i) => `${i.label} ${clock(i.at)}`).join(' · ')}`)
     }
     if (lines.length === 1) lines.push('Nothing fixed yet.')
+    const heavy = dayData
+      .map((d) => ({ d, busy: d.blocks.reduce((n, b) => n + (b.end - b.start), 0) }))
+      .filter((x) => x.busy >= 9 * 60)
+    for (const h of heavy) lines.push('', `Heavy day: ${weekdayName(h.d.date).replace(/^./, (c) => c.toUpperCase())}, about ${Math.round(h.busy / 60)}h booked. I would keep it light and not add extras.`)
     const chips: QuickItem[] = []
     for (const g of goals) {
       const picks = planWeek(dayData, g, toMinutes(profile.wake), toMinutes(profile.bed))

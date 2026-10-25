@@ -7,7 +7,8 @@
 
 import { applyAction, describe, undoStep, validateActions, type Action, type UndoStep } from './actions'
 import { buildSystemPrompt, parseAiReply, type RunAi } from './ai'
-import { parseTime, resolveDate, weekdayName } from './dates'
+import { parseTime, resolveDate, weekdayName, weekdayOfKey } from './dates'
+import { describeShift, loadLastWeek, parseShifts, saveLastWeek, shiftActions } from './shifts'
 import type { Db } from './firestore'
 import { addDaysToKey, londonResetDayKey } from './london'
 import { buildContext, isSensitive, type ResolveIndex } from './privacy'
@@ -114,6 +115,10 @@ export async function handleMessage(db: Db, runAi: RunAi, rawText: string, now: 
   const cmd = await handleRoutineCommand(db, text, londonResetDayKey(now))
   if (cmd) return { reply: cmd.reply, summary: [], warnings: [] }
 
+  // 0c. Shifts: "shifts: mon wed 9-3, fri 12-6" adds them to the week ahead. No AI.
+  const sh = text.match(/^shifts?\s*:\s*(.*)$/i)
+  if (sh) return handleShifts(db, sh[1], now)
+
   // 1. Manual commands: no AI, so nothing leaves HQ.
   const manual = parseManual(text, now)
   if (manual) {
@@ -146,6 +151,28 @@ export async function handleMessage(db: Db, runAi: RunAi, rawText: string, now: 
   // 4. Validate, then park as a proposal.
   const { actions, warnings } = validateActions(parsed.actions, index as ResolveIndex, now)
   return saveProposal(db, now, text, parsed.reply, actions, warnings)
+}
+
+async function handleShifts(db: Db, body: string, now: Date): Promise<AskResult> {
+  const none = /^(none|off|no shifts?|nothing)$/i.test(body.trim())
+  if (none) return { reply: 'Okay, no shifts for the week ahead.', summary: [], warnings: [] }
+  const parsed = parseShifts(body)
+  if (typeof parsed === 'string') return { reply: parsed, summary: [], warnings: [] }
+  const today = londonResetDayKey(now)
+  const base = weekdayOfKey(today) === 0 ? addDaysToKey(today, 1) : today
+  const state = (await db.getDoc('joelhq/state'))?.data ?? {}
+  const actions = shiftActions(parsed, base, Array.isArray(state.tasks) ? (state.tasks as never[]) : [])
+  await saveLastWeek(db, parsed)
+  if (actions.length === 0) return { reply: `Saved. Those shifts are already on your list: ${parsed.map(describeShift).join(', ')}.`, summary: [], warnings: [] }
+  const undo: UndoStep[] = []
+  const applied: string[] = []
+  for (const a of actions) {
+    undo.push(await applyAction(db, a, now))
+    applied.push(`Work ${a.type === 'add_task' ? `${a.date} ${a.time}` : ''}`)
+  }
+  const activityId = crypto.randomUUID()
+  await db.set(`activityLog/${activityId}`, { id: activityId, at: now.getTime(), applied, undo, undone: false })
+  return { reply: `Added ${actions.length} shift${actions.length === 1 ? '' : 's'}: ${parsed.map(describeShift).join(', ')}. I will ask "same as last week?" next Sunday. Undo is on the Home page.`, summary: applied, warnings: [] }
 }
 
 async function handleSet(db: Db, text: string): Promise<AskResult | null> {
@@ -269,7 +296,7 @@ export async function undo(db: Db, activityId: string, now: Date) {
 export interface QuickItem {
   id: string
   label: string
-  kind: 'habit' | 'all_habits' | 'task' | 'task_done' | 'task_skip' | 'task_later' | 'goal_done' | 'dismiss'
+  kind: 'shifts_same' | 'habit' | 'all_habits' | 'task' | 'task_done' | 'task_skip' | 'task_later' | 'goal_done' | 'dismiss'
   /** Buttons in one group answer the same question: answering one closes them all. */
   group?: string
   /** The question these buttons answer, shown on the Home card (set on the first button of a group). */
@@ -296,7 +323,12 @@ export async function quickAction(db: Db, messageId: string, quickId: string, no
   if (item.done) return { applied: [] as string[] }
 
   const actions: Action[] = []
-  if (item.kind === 'habit' && item.habitId && item.habitName) {
+  if (item.kind === 'shifts_same') {
+    const last = await loadLastWeek(db)
+    if (last.length === 0) throw new HttpError(400, 'I have no saved shifts yet. Type: shifts: mon wed 9-3')
+    const state = (await db.getDoc('joelhq/state'))?.data ?? {}
+    actions.push(...shiftActions(last, item.date, Array.isArray(state.tasks) ? (state.tasks as never[]) : []))
+  } else if (item.kind === 'habit' && item.habitId && item.habitName) {
     actions.push({ type: 'mark_habit_done', habit: item.habitName, habitId: item.habitId, date: item.date })
   } else if (item.kind === 'all_habits') {
     for (const h of item.habits ?? []) actions.push({ type: 'mark_habit_done', habit: h.name, habitId: h.id, date: item.date })
@@ -315,7 +347,7 @@ export async function quickAction(db: Db, messageId: string, quickId: string, no
   } else if (item.kind === 'goal_done' && item.goalId) {
     actions.push({ type: 'log_goal', goalId: item.goalId, name: item.text ?? 'goal', date: item.date })
   }
-  if (actions.length === 0 && item.kind !== 'dismiss') throw new HttpError(400, 'Nothing to do for this button')
+  if (actions.length === 0 && item.kind !== 'dismiss' && item.kind !== 'shifts_same') throw new HttpError(400, 'Nothing to do for this button')
 
   const undo: UndoStep[] = []
   const applied: string[] = []

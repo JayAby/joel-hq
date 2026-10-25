@@ -202,7 +202,7 @@ async function route(req: Request, env: Env): Promise<Response> {
       if (url.pathname === '/tick') {
         // Test helper: { "force": "morning" | "evening" | "reminder" } sends that message now.
         const f = b.force
-        const force: Force | undefined = f === 'morning' || f === 'evening' || f === 'reminder' || f === 'checkin' || f === 'weekly' ? f : undefined
+        const force: Force | undefined = f === 'morning' || f === 'evening' || f === 'reminder' || f === 'checkin' || f === 'weekly' || f === 'shifts' ? f : undefined
         const d = db(env)
         return json({ sent: await runProactive(d, now, force, makePush(env, d)) })
       }
