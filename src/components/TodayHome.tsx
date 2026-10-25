@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { FiCheck, FiClock, FiSend, FiStar } from 'react-icons/fi'
+import { FiCheck, FiClock, FiSend, FiStar, FiX } from 'react-icons/fi'
 import { mondayOf, type RecurringPlan, type Task } from '../types'
 import { resetDayKey } from '../config'
 import { habitWeekCount, isHabitDoneToday } from '../plans'
@@ -61,6 +61,16 @@ function skyFor(now: Date): { key: keyof typeof SKY; color: string } {
   return { key, color: SKY[key] }
 }
 
+const needsKey = (day: string) => `joelhq-needs-off:${day}`
+function readNeedsOff(day: string): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(needsKey(day)) ?? '[]') as unknown
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
 const offKey = (day: string) => `joelhq-suggest-off:${day}`
 
 function readOff(day: string): string[] {
@@ -98,6 +108,7 @@ export default function TodayHome({
   const [checkIn, setCheckIn] = useState(false)
   const [weekOpen, setWeekOpen] = useState(false)
   const [ask, setAsk] = useState('')
+  const [needsOff, setNeedsOff] = useState<string[]>(() => readNeedsOff(today))
 
   const nowMin = now.getHours() * 60 + now.getMinutes()
   const nowL = logical(nowMin)
@@ -166,7 +177,7 @@ export default function TodayHome({
     const b = busyBlocks([t], profile)[0]
     return !!b && logical(b.end) < nowL
   })
-  const needs = inbox.needs
+  const needs = inbox.needs.filter((n) => !needsOff.includes(n.key))
   let headline: string
   if (view.current) headline = `${view.current.t.t} until ${toHHMM(view.current.block.end)}.`
   else if (view.next) headline = `${view.next.t.t} is next, in ${untilText(Math.max(0, logical(view.next.block.start) - nowL))}. ${view.freeLabel}.`
@@ -212,6 +223,16 @@ export default function TodayHome({
       return { key, dow: dt.toLocaleDateString('en-GB', { weekday: 'narrow' }), num: dt.getDate(), count: list.length, work: list.some((t) => /^\s*(work|shift)\b/i.test(t.t)), heavy: bookedMinutes(list, profile) >= HEAVY_MINUTES }
     })
   })()
+
+  function hideNeed(key: string) {
+    const next = [...needsOff, key]
+    setNeedsOff(next)
+    try {
+      localStorage.setItem(needsKey(today), JSON.stringify(next))
+    } catch {
+      /* it just comes back after a reload */
+    }
+  }
 
   function submitAsk() {
     const text = ask.trim()
@@ -318,7 +339,12 @@ export default function TodayHome({
           </div>
           {needs.map((n) => (
             <div key={n.key} className="hm-need">
-              <div className="hm-need-q">{n.prompt}</div>
+              <div className="hm-need-top">
+                <div className="hm-need-q">{n.prompt}</div>
+                <button className="hm-need-x" onClick={() => hideNeed(n.key)} aria-label="Dismiss this question" title="Dismiss">
+                  <FiX size={18} />
+                </button>
+              </div>
               <div className="hm-need-btns">
                 {n.chips.map((c, i) => (
                   <button
