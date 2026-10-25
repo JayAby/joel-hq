@@ -16,6 +16,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   </head>
   <body>
+    <div id="boot" style="position:fixed;inset:0;z-index:9999;background:radial-gradient(ellipse at 50% 38%,#2a2360 0%,#0a0d12 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;box-sizing:border-box;transition:opacity .45s">
+      <svg width="132" height="132" viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="ba" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd9a8"/><stop offset=".55" stop-color="#ffb86b"/><stop offset="1" stop-color="#e0893a"/></linearGradient><linearGradient id="bb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe2bd"/><stop offset="1" stop-color="#f0a050"/></linearGradient><linearGradient id="bc" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9772f"/><stop offset="1" stop-color="#8c4a1e"/></linearGradient></defs><g transform="translate(0,-2)"><polygon points="20,70 18,34 34,52 50,70" fill="url(#ba)"/><polygon points="34,52 50,22 66,52 50,70" fill="url(#bb)"/><polygon points="80,70 82,34 66,52 50,70" fill="url(#bc)"/><polygon points="50,22 56,45 50,70 44,45" fill="#fff" opacity=".28"/><rect x="19" y="72" width="62" height="9" rx="3" fill="url(#ba)"/><circle cx="18" cy="31" r="4.2" fill="url(#bb)"/><circle cx="50" cy="19" r="4.8" fill="url(#ba)"/><circle cx="82" cy="31" r="4.2" fill="url(#bc)"/></g></svg>
+      <div style="font:700 15px 'Space Grotesk',system-ui,sans-serif;letter-spacing:.35em;color:#5eead4">HQ</div>
+      <div id="boot-quote" style="max-width:300px;text-align:center;font:italic 500 14px/1.45 'Space Grotesk',system-ui,sans-serif;color:#cfd5e4;min-height:42px"></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
